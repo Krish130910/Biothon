@@ -9,6 +9,11 @@ import { SimulationService } from "./services/simulation.service.js";
 import { AIService } from "./services/ai.service.js";
 import { GuardrailsService } from "./services/guardrails.service.js";
 import { ProgressService, type ProgressLog } from "./services/progress.service.js";
+import { calculateActionImpacts } from "./services/actionImpact.service.js";
+import { RiskDriverService } from "./services/riskDriver.service.js";
+import { FoodImpactService } from "./services/foodImpact.service.js";
+import { PredictionService } from "./services/prediction.service.js";
+import { BehaviorService } from "./services/behavior.service.js";
 
 dotenv.config();
 
@@ -580,6 +585,17 @@ const ScannerAnalyzeSchema = z.object({
   contents: z.array(z.any()),
 });
 
+const FoodAnalyzeSchema = z.object({
+  contents: z.array(z.any()).optional(),
+  ingredients: z.array(z.string()).optional(),
+  productName: z.string().optional(),
+  language: z.string().optional().default("en"),
+});
+
+const ForecastSchema = z.object({
+  actions: z.array(z.string()).default([]),
+});
+
 // POST /api/coach/explain - Explain risks in simple terms
 app.post("/api/coach/explain", requireAuth, async (req: AuthenticatedRequest, res) => {
   const uid = req.user?.uid;
@@ -774,105 +790,484 @@ app.post("/api/coach/explain-simulation", requireAuth, async (req: Authenticated
   }
 });
 
-// POST /api/scanner/analyze - Multimodal Ingredient Scanner backend route
-app.post("/api/scanner/analyze", requireAuth, async (req: AuthenticatedRequest, res) => {
+// POST /api/scanner/analyze & POST /api/food/analyze - Multimodal Ingredient Scanner backend routes
+app.post(["/api/scanner/analyze", "/api/food/analyze"], requireAuth, async (req: AuthenticatedRequest, res) => {
   const uid = req.user?.uid;
   if (!uid) {
     return res.status(400).json({ error: "Bad Request: Missing User UID" });
   }
 
   try {
-    const parsed = ScannerAnalyzeSchema.safeParse(req.body);
+    const parsed = FoodAnalyzeSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Validation Error", details: parsed.error.format() });
     }
 
-    const { contents } = parsed.data;
+    const { contents, ingredients, productName } = parsed.data;
+
+    // Fetch user profile
+    const profileRef = db.collection("profiles").doc(uid);
+    const profileSnap = await profileRef.get();
+    if (!profileSnap.exists) {
+      return res.status(404).json({ error: "Not Found: Profile is required to personalize food decision analysis" });
+    }
+
+    const profileData = profileSnap.data()!;
+    const profile = {
+      age: profileData.age,
+      gender: profileData.gender,
+      heightCm: profileData.heightCm || profileData.height,
+      weightKg: profileData.weightKg || profileData.weight,
+      smoking: profileData.smoking,
+      exercise: profileData.exercise || profileData.exerciseLevel,
+      familyHistory: profileData.familyHistory || "",
+      symptoms: profileData.symptoms || "",
+      alcohol: profileData.alcohol || null,
+      diseases: profileData.diseases || null,
+    };
+
+    // Calculate risk scores and priorities
+    const riskAnalysis = RiskService.analyze(profile);
+    const driverAnalysis = RiskDriverService.analyzeRiskDrivers(profile);
+    const topDrivers = driverAnalysis.topDrivers;
+    const actionPriorities = riskAnalysis.actionPriorities;
+
+    const risks = {
+      diabetes: riskAnalysis.diabetesRisk.risk,
+      heart: riskAnalysis.heartRisk.risk,
+      hypertension: riskAnalysis.hypertensionRisk.risk,
+    };
+
+    let result: any = null;
     const key = process.env.GEMINI_API_KEY;
-    if (!key || key === "YOUR_GEMINI_API_KEY" || key.includes("placeholder")) {
-      return res.status(400).json({ error: "Gemini API key is unconfigured on the backend." });
-    }
 
-    const model = "gemini-2.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    if (contents && contents.length > 0 && key && key !== "YOUR_GEMINI_API_KEY" && !key.includes("placeholder")) {
+      // Run Multimodal Gemini Scanner with profile data
+      const model = "gemini-2.5-flash";
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
 
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              score: { type: "integer" },
-              goodIngredients: {
-                type: "array",
-                items: { type: "string" },
+      const userRiskText = `User Risks:
+- Type 2 Diabetes Risk: ${risks.diabetes}%
+- Heart Disease Risk: ${risks.heart}%
+- Hypertension Risk: ${risks.hypertension}%
+
+User Top Drivers:
+${topDrivers.map((d) => `- ${d.factor} (${d.contribution}%)`).join("\n")}
+
+User Action Priorities:
+${actionPriorities.map((p) => `- ${p.action}`).join("\n")}
+`;
+
+      const personalizedPrompt = `Analyze this food ingredient label or list.
+First, extract the product name and list of ingredients.
+Then, cross-reference the ingredients with the following user health profile to assess personalized impacts:
+${userRiskText}
+
+Provide:
+1. "name": The brand/product name.
+2. "goodIngredients": Beneficial ingredients present.
+3. "watchOut": Concerning ingredients / additives.
+4. "diabetesImpact": How the ingredients impact Type 2 Diabetes (mention glycemic index, starch, sugars if applicable).
+5. "bloodPressureImpact": How the ingredients impact vascular health / blood pressure (mention sodium/salt content if applicable).
+6. "heartHealthImpact": How the ingredients impact heart health / cholesterol (mention palm oil, trans fats, saturated fats if applicable).
+7. "recommendation": A personalized clinical advice explaining the food's impact on THIS user's specific health profile. E.g. "Because your diabetes risk is elevated and sugar is one of your top drivers..." Focus on their highest risk areas. If the food contains ingredients conflicting with their action priorities, explicitly state the conflict.
+8. "alternatives": An array of 3 healthy regional Indian alternatives suitable for this user's profile.
+9. "rawText": The raw extracted ingredients text.
+`;
+
+      // Construct request contents
+      const geminiContents = JSON.parse(JSON.stringify(contents));
+      let promptInserted = false;
+      for (const part of geminiContents) {
+        if (part.parts) {
+          for (const p of part.parts) {
+            if (p.text && p.text.toLowerCase().includes("ingredients")) {
+              p.text = personalizedPrompt;
+              promptInserted = true;
+            }
+          }
+        }
+      }
+      if (!promptInserted) {
+        geminiContents.push({
+          role: "user",
+          parts: [{ text: personalizedPrompt }]
+        });
+      }
+
+      const geminiResp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: geminiContents,
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                goodIngredients: { type: "array", items: { type: "string" } },
+                watchOut: { type: "array", items: { type: "string" } },
+                diabetesImpact: { type: "string" },
+                bloodPressureImpact: { type: "string" },
+                heartHealthImpact: { type: "string" },
+                recommendation: { type: "string" },
+                alternatives: { type: "array", items: { type: "string" } },
+                rawText: { type: "string" },
               },
-              watchOut: {
-                type: "array",
-                items: { type: "string" },
-              },
-              diabetesImpact: { type: "string" },
-              bloodPressureImpact: { type: "string" },
-              heartHealthImpact: { type: "string" },
-              recommendation: { type: "string" },
-              rawText: { type: "string" },
+              required: [
+                "name",
+                "goodIngredients",
+                "watchOut",
+                "diabetesImpact",
+                "bloodPressureImpact",
+                "heartHealthImpact",
+                "recommendation",
+                "alternatives",
+                "rawText",
+              ],
             },
-            required: [
-              "name",
-              "score",
-              "goodIngredients",
-              "watchOut",
-              "diabetesImpact",
-              "bloodPressureImpact",
-              "heartHealthImpact",
-              "recommendation",
-              "rawText",
-            ],
+            temperature: 0.2,
           },
-          temperature: 0.2,
-        },
-      }),
-    });
+        }),
+      });
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      console.error("Gemini scanner error:", resp.status, errText);
-      return res.status(resp.status).json({ error: `Gemini API error: ${errText}` });
+      if (geminiResp.ok) {
+        const geminiJson: any = await geminiResp.json();
+        const geminiText = geminiJson?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+        if (geminiText) {
+          result = JSON.parse(geminiText);
+        }
+      } else {
+        const errText = await geminiResp.text();
+        console.warn("Gemini scanner call failed, falling back to deterministic:", errText);
+      }
     }
 
-    const json: any = await resp.json();
-    const text = json?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+    // Fallback or deterministic post-processing
+    const foodName = result?.name || productName || "Unknown Product";
+    const ingreds = result?.watchOut || ingredients || [];
 
-    if (!text) {
-      return res.status(500).json({ error: "Empty response from Gemini scanner API" });
+    const deterministic = FoodImpactService.analyze(foodName, ingreds, risks, actionPriorities);
+
+    if (!result) {
+      // Fully deterministic fallback output
+      result = {
+        name: foodName,
+        goodIngredients: [],
+        watchOut: ingreds,
+        diabetesImpact: deterministic.diabetesImpact > 0
+          ? `Contains ingredients with high glycemic or diabetic concerns. Total impact score: +${deterministic.diabetesImpact}`
+          : "Low glycemic impact. No immediate diabetes concern.",
+        bloodPressureImpact: deterministic.hypertensionImpact > 0
+          ? `Contains high sodium or vasoconstrictive agents. Total vascular impact score: +${deterministic.hypertensionImpact}`
+          : "Low sodium impact. Low blood pressure concern.",
+        heartHealthImpact: deterministic.heartImpact > 0
+          ? `Contains saturated fats, trans fats, or palm oils. Total cardiovascular impact score: +${deterministic.heartImpact}`
+          : "Low saturated fats. Favorable for heart health.",
+        recommendation: deterministic.conflict.conflicts
+          ? `${deterministic.conflict.message} Consuming this product frequently is not recommended.`
+          : `This food has a personalized score of ${deterministic.personalizedScore}/10 for you. ${deterministic.personalizedScore >= 8 ? "Highly suitable for daily inclusion." : "Consume in moderation."}`,
+        alternatives: deterministic.alternatives,
+        rawText: ingreds.join(", "),
+      };
     }
 
-    const parsedText = JSON.parse(text);
+    // Sanitize values
+    result.diabetesImpact = GuardrailsService.sanitizeText(result.diabetesImpact);
+    result.bloodPressureImpact = GuardrailsService.sanitizeText(result.bloodPressureImpact);
+    result.heartHealthImpact = GuardrailsService.sanitizeText(result.heartHealthImpact);
+    result.recommendation = GuardrailsService.sanitizeText(result.recommendation);
 
-    // Sanitize with Guardrails
-    parsedText.diabetesImpact = GuardrailsService.sanitizeText(parsedText.diabetesImpact);
-    parsedText.bloodPressureImpact = GuardrailsService.sanitizeText(parsedText.bloodPressureImpact);
-    parsedText.heartHealthImpact = GuardrailsService.sanitizeText(parsedText.heartHealthImpact);
-    parsedText.recommendation = GuardrailsService.sanitizeText(parsedText.recommendation);
+    // Merge deterministic scores and conflicts
+    result.score = deterministic.personalizedScore; // keep score field aligned for old frontend calls
+    result.foodScore = deterministic.foodScore;
+    result.personalizedScore = deterministic.personalizedScore;
+    result.riskLevel = deterministic.riskLevel;
+    result.conflict = deterministic.conflict;
+    result.recommendations = [result.recommendation];
 
-    // Cache scanner results in Firestore
-    const docRef = db.collection("aiRecommendations").doc(`${uid}_scanner_${Date.now()}`);
-    await docRef.set({
-      userId: uid,
-      type: "scanner",
-      content: parsedText,
-      createdAt: new Date().toISOString()
-    });
+    result.diabetesImpactPoints = deterministic.diabetesImpact;
+    result.hypertensionImpactPoints = deterministic.hypertensionImpact;
+    result.heartImpactPoints = deterministic.heartImpact;
 
-    return res.json(parsedText);
+    // Save scan to Firestore 'foodScans' collection
+    try {
+      const scanRef = db.collection("foodScans").doc();
+      await scanRef.set({
+        userId: uid,
+        productName: result.name,
+        ingredients: result.watchOut,
+        foodScore: result.foodScore,
+        personalizedScore: result.personalizedScore,
+        riskLevel: result.riskLevel,
+        createdAt: new Date().toISOString(),
+        alternatives: result.alternatives,
+        recommendation: result.recommendation,
+      });
+    } catch (saveErr) {
+      console.warn("Failed to save food scan to Firestore:", saveErr);
+    }
+
+    return res.json(result);
   } catch (err: any) {
-    console.error("Scanner API error:", err);
-    return res.status(500).json({ error: "Scanner Error: Failed to analyze ingredient label" });
+    console.error("Food analyze API error:", err);
+    return res.status(500).json({ error: "Internal Server Error: Failed to analyze food impact" });
+  }
+});
+
+// GET /api/food/recent - Fetch user's most recent food scan
+app.get("/api/food/recent", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    return res.status(400).json({ error: "Bad Request: Missing User UID" });
+  }
+
+  try {
+    const scansSnap = await db.collection("foodScans")
+      .where("userId", "==", uid)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+
+    if (scansSnap.empty) {
+      return res.json({ success: true, scan: null });
+    }
+
+    const scan = scansSnap.docs[0].data();
+    return res.json({
+      success: true,
+      scan: {
+        productName: scan.productName,
+        personalizedScore: scan.personalizedScore,
+        foodScore: scan.foodScore,
+        riskLevel: scan.riskLevel,
+        createdAt: scan.createdAt,
+        alternatives: scan.alternatives,
+        recommendation: scan.recommendation,
+      }
+    });
+  } catch (err: any) {
+    console.error("Recent food scan API error:", err);
+    return res.status(500).json({ error: "Internal Server Error: Failed to fetch recent scan" });
+  }
+});
+
+// POST /api/predictions/forecast - Generate 30/90/180 day risk projection
+app.post("/api/predictions/forecast", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    return res.status(400).json({ error: "Bad Request: Missing User UID" });
+  }
+
+  try {
+    const parsed = ForecastSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Validation Error", details: parsed.error.format() });
+    }
+
+    const { actions } = parsed.data;
+
+    // Fetch user profile
+    const profileRef = db.collection("profiles").doc(uid);
+    const profileSnap = await profileRef.get();
+    if (!profileSnap.exists) {
+      return res.status(404).json({ error: "Not Found: Profile is required to run forecasts" });
+    }
+
+    const profileData = profileSnap.data()!;
+    const profile = {
+      age: profileData.age,
+      gender: profileData.gender,
+      heightCm: profileData.heightCm || profileData.height,
+      weightKg: profileData.weightKg || profileData.weight,
+      smoking: profileData.smoking,
+      exercise: profileData.exercise || profileData.exerciseLevel,
+      familyHistory: profileData.familyHistory || "",
+      symptoms: profileData.symptoms || "",
+      alcohol: profileData.alcohol || null,
+      diseases: profileData.diseases || null,
+    };
+
+    // Fetch progress logs count to determine prediction confidence
+    let logsCount = 0;
+    try {
+      const logsSnap = await db.collection("progressLogs")
+        .where("userId", "==", uid)
+        .get();
+      logsCount = logsSnap.size;
+    } catch (logErr) {
+      console.warn("Failed to retrieve progress logs for forecasting:", logErr);
+    }
+
+    // Call PredictionService to generate the forecast
+    const forecastResult = PredictionService.generateForecast(profile, actions, logsCount);
+
+    // Call Gemini to explain the forecast trajectory
+    const currentRisk = forecastResult.currentRisk;
+    const forecast = {
+      days30: forecastResult.days30.risk,
+      days90: forecastResult.days90.risk,
+      days180: forecastResult.days180.risk,
+    };
+
+    const language = profileData.language || "en";
+    const explanation = await AIService.explainForecast(uid, currentRisk, forecast, actions, language);
+
+    const fullResult = {
+      success: true,
+      ...forecastResult,
+      explanation,
+    };
+
+    // Save forecast to Firestore 'forecasts' collection
+    try {
+      const forecastRef = db.collection("forecasts").doc();
+      await forecastRef.set({
+        userId: uid,
+        currentRisk: fullResult.currentRisk,
+        forecast: {
+          days30: fullResult.days30,
+          days90: fullResult.days90,
+          days180: fullResult.days180,
+        },
+        actions,
+        explanation: fullResult.explanation,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (saveErr) {
+      console.warn("Failed to save forecast record to Firestore:", saveErr);
+    }
+
+    return res.json(fullResult);
+  } catch (err: any) {
+    console.error("Forecast API error:", err);
+    return res.status(500).json({ error: "Internal Server Error: Failed to generate forecast" });
+  }
+});
+
+// GET /api/coach/behavior - Fetch active behavioral coaching nudge
+app.get("/api/coach/behavior", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    return res.status(400).json({ error: "Bad Request: Missing User UID" });
+  }
+
+  try {
+    // 1. Fetch user history collections (last 30 days)
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [logsSnap, simsSnap, scansSnap] = await Promise.all([
+      db.collection("progressLogs").where("userId", "==", uid).get(),
+      db.collection("simulations").where("userId", "==", uid).get(),
+      db.collection("foodScans").where("userId", "==", uid).get()
+    ]);
+
+    const progressLogs = logsSnap.docs.map((doc: any) => doc.data());
+    const simulations = simsSnap.docs.map((doc: any) => doc.data());
+    const foodScans = scansSnap.docs.map((doc: any) => doc.data());
+
+    // 2. Run behavior signals analyzer
+    const signals = BehaviorService.analyzeBehavior({ progressLogs, simulations, foodScans });
+
+    // 3. Prioritize signals
+    const priorityOrder = [
+      "risk_stagnant_30_days",
+      "simulates_but_no_progress",
+      "repeated_high_sugar_scans",
+      "missed_progress_logging",
+      "risk_improved"
+    ];
+
+    let activeSignal: any = null;
+    for (const type of priorityOrder) {
+      const found = signals.find(s => s.type === type);
+      if (found) {
+        activeSignal = found;
+        break;
+      }
+    }
+
+    // Default signal if none are active
+    if (!activeSignal) {
+      activeSignal = {
+        type: "risk_improved",
+        severity: "positive",
+        insight: "Your habits are currently well-balanced. Keep maintaining your daily routines!"
+      };
+    }
+
+    // 4. Retrieve user profile details for coach context
+    const profileRef = db.collection("profiles").doc(uid);
+    const profileSnap = await profileRef.get();
+    if (!profileSnap.exists) {
+      return res.status(404).json({ error: "Profile required to analyze behavioral coaching context" });
+    }
+
+    const profileData = profileSnap.data()!;
+    const profile = {
+      age: profileData.age,
+      gender: profileData.gender,
+      heightCm: profileData.heightCm || profileData.height,
+      weightKg: profileData.weightKg || profileData.weight,
+      smoking: profileData.smoking,
+      exercise: profileData.exercise || profileData.exerciseLevel,
+      familyHistory: profileData.familyHistory || "",
+      symptoms: profileData.symptoms || "",
+      alcohol: profileData.alcohol || null,
+      diseases: profileData.diseases || null,
+    };
+
+    // Calculate risk scores and drivers
+    const riskAnalysis = RiskService.analyze(profile);
+    const driverAnalysis = RiskDriverService.analyzeRiskDrivers(profile);
+    const actionPriorities = riskAnalysis.actionPriorities;
+
+    // 5. Generate AI Nudge message
+    const language = profileData.language || "en";
+    const nudge = await AIService.generateCoachingNudge(
+      uid,
+      profile,
+      driverAnalysis.topDrivers,
+      actionPriorities,
+      activeSignal,
+      language
+    );
+
+    const result = {
+      success: true,
+      nudge: {
+        signalType: activeSignal.type,
+        insight: activeSignal.insight,
+        message: nudge.message,
+        nextAction: nudge.nextAction,
+        encouragement: nudge.encouragement,
+        createdAt: new Date().toISOString()
+      }
+    };
+
+    // 6. Save Nudge to Firestore 'coachingNudges'
+    try {
+      const nudgeRef = db.collection("coachingNudges").doc();
+      await nudgeRef.set({
+        userId: uid,
+        signalType: result.nudge.signalType,
+        insight: result.nudge.insight,
+        message: result.nudge.message,
+        nextAction: result.nudge.nextAction,
+        encouragement: result.nudge.encouragement,
+        createdAt: result.nudge.createdAt,
+        status: "active"
+      });
+    } catch (saveErr) {
+      console.warn("Failed to log coaching nudge to database:", saveErr);
+    }
+
+    return res.json(result);
+  } catch (err: any) {
+    console.error("Behavior Coach API error:", err);
+    return res.status(500).json({ error: "Internal Server Error: Failed to analyze behavior signals" });
   }
 });
 
@@ -1098,6 +1493,120 @@ app.get("/api/progress/review", requireAuth, async (req: AuthenticatedRequest, r
     return res.status(500).json({ error: "Internal Server Error: Failed to generate progress review" });
   }
 });
+
+// POST /api/actions/impact - Action Impact Engine
+app.post("/api/actions/impact", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    return res.status(400).json({ error: "Bad Request: Missing User UID" });
+  }
+
+  try {
+    // Fetch saved profile from Firestore / MockFirestore
+    const docRef = db.collection("profiles").doc(uid);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return res.status(404).json({
+        error: "Not Found: Complete a health assessment first.",
+      });
+    }
+
+    const profileData = docSnap.data();
+
+    const profile = {
+      age: profileData.age,
+      gender: profileData.gender,
+      heightCm: profileData.heightCm || profileData.height,
+      weightKg: profileData.weightKg || profileData.weight,
+      smoking: profileData.smoking,
+      exercise: profileData.exercise || profileData.exerciseLevel,
+      familyHistory: profileData.familyHistory || "",
+      symptoms: profileData.symptoms || "",
+      alcohol: profileData.alcohol || null,
+      diseases: profileData.diseases || null,
+      sleepHours: profileData.sleepHours ?? 0,
+    };
+
+    const recommendedActions = calculateActionImpacts(profile);
+
+    // Cache latest ranking in actionImpacts/{uid}
+    try {
+      const cacheRef = db.collection("actionImpacts").doc(uid);
+      await cacheRef.set({
+        userId: uid,
+        recommendedActions,
+        calculatedAt: new Date().toISOString(),
+      });
+    } catch (cacheErr) {
+      console.warn("Failed to cache action impacts:", cacheErr);
+    }
+
+    return res.json({
+      success: true,
+      data: { recommendedActions },
+    });
+  } catch (err: any) {
+    console.error("Action Impact API error:", err);
+    return res.status(500).json({ error: "Internal Server Error: Failed to calculate action impacts" });
+  }
+});
+
+// GET /api/risk/drivers - Calculate and explain risk drivers
+app.get("/api/risk/drivers", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    return res.status(400).json({ error: "Bad Request: Missing User UID" });
+  }
+
+  try {
+    const docRef = db.collection("profiles").doc(uid);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return res.status(404).json({ error: "Not Found: Profile is required to calculate risk drivers" });
+    }
+
+    const profileData = docSnap.data()!;
+    const profile = {
+      age: profileData.age,
+      gender: profileData.gender,
+      heightCm: profileData.heightCm || profileData.height,
+      weightKg: profileData.weightKg || profileData.weight,
+      smoking: profileData.smoking,
+      exercise: profileData.exercise || profileData.exerciseLevel,
+      familyHistory: profileData.familyHistory || "",
+      symptoms: profileData.symptoms || "",
+      alcohol: profileData.alcohol || null,
+      diseases: profileData.diseases || null,
+    };
+
+    const driverResult = RiskDriverService.analyzeRiskDrivers(profile);
+
+    // Save to Firestore 'riskDrivers' collection
+    try {
+      const cacheRef = db.collection("riskDrivers").doc(uid);
+      await cacheRef.set({
+        userId: uid,
+        topDrivers: driverResult.topDrivers,
+        modifiableRisk: driverResult.modifiableRisk,
+        nonModifiableRisk: driverResult.nonModifiableRisk,
+        calculatedAt: new Date().toISOString(),
+      });
+    } catch (cacheErr) {
+      console.warn("Failed to save risk drivers to Firestore:", cacheErr);
+    }
+
+    return res.json({
+      success: true,
+      data: driverResult,
+    });
+  } catch (err: any) {
+    console.error("Risk drivers API error:", err);
+    return res.status(500).json({ error: "Internal Server Error: Failed to analyze risk drivers" });
+  }
+});
+
 
 // Start the server
 app.listen(PORT, () => {

@@ -749,6 +749,19 @@ function ScannerPage() {
               {/* Score and Header Card */}
               <Card className="border-border bg-surface shadow-card-soft overflow-hidden">
                 <CardContent className="p-6 sm:p-8">
+                  {/* Goal Conflict Banner */}
+                  {report.conflict?.conflicts && (
+                    <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 p-4 flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-xs font-bold text-red-600">Goal Conflict Detected</div>
+                        <p className="text-[11px] text-red-600/90 mt-0.5 font-semibold">
+                          {report.conflict.message}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-col sm:flex-row items-center gap-6 justify-between border-b border-border/40 pb-6 mb-6">
                     <div className="text-center sm:text-left space-y-1">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-teal">
@@ -759,22 +772,29 @@ function ScannerPage() {
                       </h2>
                     </div>
 
-                    {/* Circular Score Gauge */}
-                    <div className="flex items-center gap-4 bg-surface-muted/20 border border-border/40 p-3 rounded-2xl">
+                    {/* Dual Score Gauge */}
+                    <div className="flex flex-wrap items-center gap-4 bg-surface-muted/20 border border-border/40 p-3.5 rounded-2xl">
                       <div className="text-right">
-                        <div className="text-xs font-semibold text-muted-foreground">
-                          Health Score
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Base Food Score
                         </div>
-                        <div
-                          className={`text-xl font-extrabold ${getScoreTextColor(report.score)}`}
-                        >
-                          {report.score}/10
+                        <div className="text-xs font-bold text-foreground">
+                          {report.foodScore ?? report.score}/10
+                        </div>
+                      </div>
+                      <div className="h-8 w-[1px] bg-border/60" />
+                      <div className="text-right">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-teal font-mono">
+                          Personalized
+                        </div>
+                        <div className={`text-base font-extrabold ${getScoreTextColor(report.personalizedScore ?? report.score)}`}>
+                          {report.personalizedScore ?? report.score}/10
                         </div>
                       </div>
                       <div
-                        className={`h-11 w-11 rounded-xl flex items-center justify-center font-display text-lg font-black ${getScoreColor(report.score)}`}
+                        className={`h-11 w-11 rounded-xl flex items-center justify-center font-display text-lg font-black ${getScoreColor(report.personalizedScore ?? report.score)}`}
                       >
-                        {report.score}
+                        {report.personalizedScore ?? report.score}
                       </div>
                     </div>
                   </div>
@@ -782,7 +802,7 @@ function ScannerPage() {
                   {/* Recommendation Card */}
                   <div className="rounded-xl border border-border bg-surface-muted/30 p-5 shadow-sm space-y-2">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-teal">
-                      Clinical Assessment Summary
+                      Personalized Impact Recommendation
                     </div>
                     <p className="text-xs leading-relaxed text-foreground/90 font-medium">
                       "{report.recommendation}"
@@ -796,11 +816,22 @@ function ScannerPage() {
                 {/* Diabetes */}
                 <Card className="border-border bg-surface shadow-card-soft">
                   <CardContent className="p-5 space-y-3">
-                    <div className="flex items-center gap-2 text-red-500">
-                      <Brain className="h-4.5 w-4.5 shrink-0" />
-                      <h4 className="font-display text-xs font-bold text-foreground">
-                        Glycemic Impact
-                      </h4>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-red-500">
+                        <Brain className="h-4.5 w-4.5 shrink-0" />
+                        <h4 className="font-display text-xs font-bold text-foreground">
+                          Glycemic Impact
+                        </h4>
+                      </div>
+                      {report.diabetesImpactPoints !== undefined ? (
+                        report.diabetesImpactPoints >= 8 ? (
+                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">↑ High</Badge>
+                        ) : report.diabetesImpactPoints > 0 ? (
+                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">→ Mod</Badge>
+                        ) : (
+                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">✓ Low</Badge>
+                        )
+                      ) : null}
                     </div>
                     <p className="text-[11px] leading-relaxed text-muted-foreground">
                       {report.diabetesImpact}
@@ -811,11 +842,22 @@ function ScannerPage() {
                 {/* Blood Pressure */}
                 <Card className="border-border bg-surface shadow-card-soft">
                   <CardContent className="p-5 space-y-3">
-                    <div className="flex items-center gap-2 text-teal">
-                      <Activity className="h-4.5 w-4.5 shrink-0" />
-                      <h4 className="font-display text-xs font-bold text-foreground">
-                        Vascular Impact
-                      </h4>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-teal">
+                        <Activity className="h-4.5 w-4.5 shrink-0" />
+                        <h4 className="font-display text-xs font-bold text-foreground">
+                          Vascular Impact
+                        </h4>
+                      </div>
+                      {report.hypertensionImpactPoints !== undefined ? (
+                        report.hypertensionImpactPoints >= 8 ? (
+                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">↑ High</Badge>
+                        ) : report.hypertensionImpactPoints > 0 ? (
+                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">→ Mod</Badge>
+                        ) : (
+                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">✓ Low</Badge>
+                        )
+                      ) : null}
                     </div>
                     <p className="text-[11px] leading-relaxed text-muted-foreground">
                       {report.bloodPressureImpact}
@@ -826,11 +868,22 @@ function ScannerPage() {
                 {/* Heart Health */}
                 <Card className="border-border bg-surface shadow-card-soft">
                   <CardContent className="p-5 space-y-3">
-                    <div className="flex items-center gap-2 text-primary">
-                      <Heart className="h-4.5 w-4.5 shrink-0" />
-                      <h4 className="font-display text-xs font-bold text-foreground">
-                        Cardiac Impact
-                      </h4>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-primary">
+                        <Heart className="h-4.5 w-4.5 shrink-0" />
+                        <h4 className="font-display text-xs font-bold text-foreground">
+                          Cardiac Impact
+                        </h4>
+                      </div>
+                      {report.heartImpactPoints !== undefined ? (
+                        report.heartImpactPoints >= 8 ? (
+                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">↑ High</Badge>
+                        ) : report.heartImpactPoints > 0 ? (
+                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">→ Mod</Badge>
+                        ) : (
+                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">✓ Low</Badge>
+                        )
+                      ) : null}
                     </div>
                     <p className="text-[11px] leading-relaxed text-muted-foreground">
                       {report.heartHealthImpact}
@@ -838,6 +891,33 @@ function ScannerPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Recommended Healthy Alternatives */}
+              {report.alternatives && report.alternatives.length > 0 && (
+                <Card className="border-border bg-surface shadow-card-soft">
+                  <CardHeader className="pb-3 border-b border-border/40">
+                    <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-teal animate-pulse-slow" /> Recommended Alternatives
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-5">
+                    <p className="text-xs text-muted-foreground mb-4">
+                      Based on your risk profile, consider these clean, regional options instead:
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {report.alternatives.map((alt, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-muted/30 p-3 hover:bg-accent/10 transition-all cursor-default"
+                        >
+                          <span className="text-base">🥗</span>
+                          <span className="text-xs font-semibold text-foreground">{alt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Ingredients Details Card */}
               <Card className="border-border bg-surface shadow-card-soft">

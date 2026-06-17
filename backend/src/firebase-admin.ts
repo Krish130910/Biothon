@@ -51,30 +51,113 @@ try {
 class MockFirestore {
   private store: Record<string, any> = {};
 
-  collection(name: string) {
-    return {
-      doc: (id: string) => {
-        const key = `${name}/${id}`;
-        return {
-          get: async () => {
-            const data = this.store[key];
-            return {
-              exists: data !== undefined,
-              data: () => data
-            };
-          },
-          set: async (data: any, options?: any) => {
-            if (options?.merge && this.store[key]) {
-              this.store[key] = { ...this.store[key], ...data };
-            } else {
-              this.store[key] = data;
-            }
-          },
-          delete: async () => {
-            delete this.store[key];
+  collection(collName: string) {
+    const self = this;
+
+    const buildDocRef = (docId: string) => {
+      const key = `${collName}/${docId}`;
+      return {
+        id: docId,
+        get: async () => ({
+          exists: Object.prototype.hasOwnProperty.call(self.store, key),
+          data: () => self.store[key],
+        }),
+        set: async (data: any, options?: any) => {
+          if (options?.merge && self.store[key]) {
+            self.store[key] = { ...self.store[key], ...data };
+          } else {
+            self.store[key] = data;
           }
+        },
+        update: async (data: any) => {
+          self.store[key] = { ...(self.store[key] || {}), ...data };
+        },
+        delete: async () => {
+          delete self.store[key];
+        },
+      };
+    };
+
+    const buildQuery = (
+      filters: Array<{ field: string; op: string; value: any }>,
+      orderField?: string,
+      orderDir?: string,
+      limitCount?: number
+    ) => {
+      const executeQuery = async () => {
+        const prefix = `${collName}/`;
+        let docs = Object.entries(self.store)
+          .filter(([k]) => k.startsWith(prefix))
+          .map(([k, v]) => ({ _id: k.slice(prefix.length), _data: v }));
+
+        // Apply where filters
+        for (const { field, op, value } of filters) {
+          docs = docs.filter((doc) => {
+            const v = (doc._data ?? {})[field];
+            if (op === "==" || op === "===") return v === value;
+            if (op === "!=" || op === "!==") return v !== value;
+            if (op === ">") return v > value;
+            if (op === ">=") return v >= value;
+            if (op === "<") return v < value;
+            if (op === "<=") return v <= value;
+            return true;
+          });
+        }
+
+        // Apply ordering
+        if (orderField) {
+          docs.sort((a, b) => {
+            const av = (a._data ?? {})[orderField];
+            const bv = (b._data ?? {})[orderField];
+            const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+            return orderDir === "desc" ? -cmp : cmp;
+          });
+        }
+
+        // Apply limit
+        if (limitCount != null) {
+          docs = docs.slice(0, limitCount);
+        }
+
+        const resultDocs = docs.map((d) => ({
+          id: d._id,
+          data: () => d._data,
+        }));
+
+        return {
+          empty: resultDocs.length === 0,
+          size: resultDocs.length,
+          docs: resultDocs,
         };
-      }
+      };
+
+      return {
+        where: (field: string, op: string, value: any) =>
+          buildQuery([...filters, { field, op, value }], orderField, orderDir, limitCount),
+        orderBy: (field: string, dir?: string) =>
+          buildQuery(filters, field, dir || "asc", limitCount),
+        limit: (n: number) =>
+          buildQuery(filters, orderField, orderDir, n),
+        get: executeQuery,
+      };
+    };
+
+    return {
+      doc: (id?: string) =>
+        buildDocRef(id ?? `mock-${Date.now()}-${Math.random().toString(36).slice(2)}`),
+      where: (field: string, op: string, value: any) =>
+        buildQuery([{ field, op, value }]),
+      orderBy: (field: string, dir?: string) =>
+        buildQuery([], field, dir || "asc"),
+      limit: (n: number) =>
+        buildQuery([], undefined, undefined, n),
+      get: () => buildQuery([]).get(),
+      add: async (data: any) => {
+        const id = `mock-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const key = `${collName}/${id}`;
+        self.store[key] = data;
+        return buildDocRef(id);
+      },
     };
   }
 }

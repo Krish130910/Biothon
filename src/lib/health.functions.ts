@@ -351,6 +351,17 @@ export const IngredientReportSchema = z.object({
   heartHealthImpact: z.string(),
   recommendation: z.string(),
   rawText: z.string(),
+  foodScore: z.number().optional(),
+  personalizedScore: z.number().optional(),
+  riskLevel: z.enum(["Low", "Moderate", "High"]).optional(),
+  conflict: z.object({
+    conflicts: z.boolean(),
+    message: z.string(),
+  }).optional(),
+  recommendations: z.array(z.string()).optional(),
+  diabetesImpactPoints: z.number().optional(),
+  hypertensionImpactPoints: z.number().optional(),
+  heartImpactPoints: z.number().optional(),
 });
 
 export type IngredientReport = z.infer<typeof IngredientReportSchema>;

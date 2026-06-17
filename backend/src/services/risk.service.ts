@@ -45,6 +45,7 @@ export interface CompleteRiskAnalysis {
   dietPlan: string;
   exercisePlan: string;
   preventionTips: string;
+  riskFactors: Array<{ factor: string; score: number }>;
 }
 
 export class RiskService {
@@ -504,6 +505,163 @@ export class RiskService {
       hypertension: hypertensionRisk.risk,
     });
 
+    // Calculate individual factor points for each of the 3 diseases, scaled by their max possible scores
+    // 1. Age
+    let ageDbPts = 0;
+    if (profile.age >= 45 && profile.age <= 54) ageDbPts = 2;
+    else if (profile.age >= 55 && profile.age <= 64) ageDbPts = 3;
+    else if (profile.age > 64) ageDbPts = 4;
+    const ageDb = Math.round((ageDbPts / 15) * 100);
+
+    let ageHeartPts = 0;
+    if (profile.age >= 35 && profile.age <= 39) ageHeartPts = 2;
+    else if (profile.age >= 40 && profile.age <= 44) ageHeartPts = 5;
+    else if (profile.age >= 45 && profile.age <= 49) ageHeartPts = 7;
+    else if (profile.age >= 50 && profile.age <= 54) ageHeartPts = 8;
+    else if (profile.age >= 55 && profile.age <= 59) ageHeartPts = 10;
+    else if (profile.age >= 60) ageHeartPts = 12;
+    const ageHeart = Math.round((ageHeartPts / 20) * 100);
+
+    let ageHtPts = 0;
+    if (profile.age > 45 && profile.age <= 60) ageHtPts = 2;
+    else if (profile.age > 60) ageHtPts = 4;
+    const ageHt = Math.round((ageHtPts / 14) * 100);
+
+    const scoreAge = Math.round((ageDb + ageHeart + ageHt) / 3);
+
+    // 2. BMI
+    let bmiDbPts = 0;
+    if (bmi >= 25 && bmi < 30) bmiDbPts = 2;
+    else if (bmi >= 30) bmiDbPts = 4;
+    const bmiDb = Math.round((bmiDbPts / 15) * 100);
+
+    let bmiHeartPts = 0;
+    if (bmi >= 25 && bmi < 30) bmiHeartPts = 2;
+    else if (bmi >= 30) bmiHeartPts = 3;
+    const bmiHeart = Math.round((bmiHeartPts / 20) * 100);
+
+    let bmiHtPts = 0;
+    if (bmi >= 25 && bmi < 30) bmiHtPts = 2;
+    else if (bmi >= 30) bmiHtPts = 4;
+    const bmiHt = Math.round((bmiHtPts / 14) * 100);
+
+    const scoreBmi = Math.round((bmiDb + bmiHeart + bmiHt) / 3);
+
+    // 3. Exercise
+    let exDb = 0;
+    if (profile.exercise === "none" || profile.exercise === "light") {
+      exDb = Math.round((3 / 15) * 100);
+    }
+    let exHeart = 0;
+    if (profile.exercise === "none" || profile.exercise === "light") {
+      exHeart = Math.round((3 / 20) * 100);
+    }
+    let exHt = 0;
+    if (profile.exercise === "none" || profile.exercise === "light") {
+      exHt = Math.round((3 / 14) * 100);
+    }
+    const scoreExercise = Math.round((exDb + exHeart + exHt) / 3);
+
+    // 4. Family History
+    let fhDbPts = 0;
+    const fhLower = profile.familyHistory.toLowerCase();
+    if (fhLower.includes("diabet") || fhLower.includes("sugar")) {
+      if (
+        fhLower.includes("mother") ||
+        fhLower.includes("father") ||
+        fhLower.includes("parent") ||
+        fhLower.includes("sibling") ||
+        fhLower.includes("brother") ||
+        fhLower.includes("sister") ||
+        fhLower.includes("son") ||
+        fhLower.includes("daughter")
+      ) {
+        fhDbPts = 5;
+      } else {
+        fhDbPts = 3;
+      }
+    }
+    const fhDb = Math.round((fhDbPts / 15) * 100);
+
+    let fhHeartPts = 0;
+    if (fhLower.includes("heart") || fhLower.includes("cardiac") || fhLower.includes("stroke") || fhLower.includes("bypass") || fhLower.includes("infarct")) {
+      fhHeartPts = 3;
+    }
+    const fhHeart = Math.round((fhHeartPts / 20) * 100);
+
+    let fhHtPts = 0;
+    if (fhLower.includes("bp") || fhLower.includes("hypertension") || fhLower.includes("blood pressure") || fhLower.includes("pressure")) {
+      fhHtPts = 3;
+    }
+    const fhHt = Math.round((fhHtPts / 14) * 100);
+
+    const scoreFamilyHistory = Math.round((fhDb + fhHeart + fhHt) / 3);
+
+    // 5. Smoking
+    let smokeHeartPts = 0;
+    if (profile.smoking === "current") smokeHeartPts = 4;
+    else if (profile.smoking === "former") smokeHeartPts = 2;
+    const smokeHeart = Math.round((smokeHeartPts / 20) * 100);
+
+    let smokeHtPts = 0;
+    if (profile.smoking === "current") smokeHtPts = 2;
+    else if (profile.smoking === "former") smokeHtPts = 1;
+    const smokeHt = Math.round((smokeHtPts / 14) * 100);
+
+    const scoreSmoking = Math.round((smokeHeart + smokeHt) / 3);
+
+    // 6. Alcohol
+    let alcHtPts = 0;
+    const alcVal = (profile.alcohol || "").toLowerCase();
+    const allText = (profile.symptoms + " " + profile.familyHistory).toLowerCase();
+    if (alcVal.includes("heavy") || alcVal.includes("frequent")) {
+      alcHtPts = 3;
+    } else if (alcVal.includes("occasional") || alcVal.includes("moderate") || alcVal.includes("drink")) {
+      alcHtPts = 1;
+    } else if (allText.includes("alcohol") || allText.includes("drinking") || allText.includes("beer") || allText.includes("wine") || allText.includes("whiskey")) {
+      alcHtPts = 1;
+    }
+    const scoreAlcohol = Math.round((alcHtPts / 14) * 100);
+    const scoreAlcoholOverall = Math.round(scoreAlcohol / 3);
+
+    // 7. Diet
+    let dietDbPts = 0;
+    if (allText.includes("sweet") || allText.includes("sugar") || allText.includes("junk") || allText.includes("soda") || allText.includes("fast food")) {
+      dietDbPts = 1;
+    }
+    const scoreDiet = Math.round((dietDbPts / 15) * 100);
+    const scoreDietOverall = Math.round(scoreDiet / 3);
+
+    // 8. Symptoms
+    let sxDbPts = 0;
+    const sxLower = profile.symptoms.toLowerCase();
+    if (sxLower.includes("thirst") || sxLower.includes("urination") || sxLower.includes("fatigue") || sxLower.includes("dry mouth") || sxLower.includes("polyuria")) {
+      sxDbPts = 2;
+    }
+    const scoreSymptoms = Math.round((sxDbPts / 15) * 100);
+    const scoreSymptomsOverall = Math.round(scoreSymptoms / 3);
+
+    // 9. Hypertension History
+    let htHeartPts = 0;
+    const allTextHt = (profile.symptoms + " " + profile.familyHistory + " " + (profile.diseases || "")).toLowerCase();
+    if (allTextHt.includes("hypertension") || allTextHt.includes("bp") || allTextHt.includes("blood pressure") || allTextHt.includes("pressure")) {
+      htHeartPts = 3;
+    }
+    const scoreHtHistory = Math.round((htHeartPts / 20) * 100);
+    const scoreHtHistoryOverall = Math.round(scoreHtHistory / 3);
+
+    const riskFactors = [
+      { factor: "AGE", score: scoreAge },
+      { factor: "BMI", score: scoreBmi },
+      { factor: "EXERCISE", score: scoreExercise },
+      { factor: "FAMILY_HISTORY", score: scoreFamilyHistory },
+      { factor: "SMOKING", score: scoreSmoking },
+      { factor: "ALCOHOL", score: scoreAlcoholOverall },
+      { factor: "DIET", score: scoreDietOverall },
+      { factor: "SYMPTOMS", score: scoreSymptomsOverall },
+      { factor: "HYPERTENSION_HISTORY", score: scoreHtHistoryOverall }
+    ].filter(f => f.score > 0);
+
     return {
       bmi,
       bmiCategory,
@@ -514,6 +672,7 @@ export class RiskService {
       overallRiskLabel,
       factors,
       actionPriorities,
+      riskFactors,
       ...plans,
     };
   }

@@ -1,6 +1,7 @@
 import { db } from "../firebase-admin.js";
 import { GuardrailsService } from "./guardrails.service.js";
 import { RiskService, type UserProfile } from "./risk.service.js";
+import { RiskDriverService } from "./riskDriver.service.js";
 
 const langName: Record<string, string> = {
   en: "English",
@@ -179,6 +180,11 @@ export class AIService {
       };
     }
 
+    const driverResult = RiskDriverService.analyzeRiskDrivers(profile);
+    const topDriversStr = driverResult.topDrivers
+      .map((td) => `- ${td.factor} (${td.contribution}% contribution)`)
+      .join("\n");
+
     const targetLang = langName[profile.language] || "English";
     const prompt = `You are a clinical wellness coach explaining health assessments.
 We have run clinical models (FINDRISC for Diabetes, Framingham for CVD and Hypertension) and got:
@@ -186,7 +192,14 @@ We have run clinical models (FINDRISC for Diabetes, Framingham for CVD and Hyper
 - Heart Disease/CVD Risk: ${scores.heart}%
 - Hypertension Risk: ${scores.hypertension}%
 
-Explain rationales for these risk scores based on demographic profile, family history, and symptoms.
+Primary Risk Drivers:
+${topDriversStr || "None identified"}
+
+Risk Composition:
+- Modifiable Lifestyle Factors: ${driverResult.modifiableRisk}%
+- Non-modifiable Fixed Factors: ${driverResult.nonModifiableRisk}%
+
+Explain rationales for these risk scores based on demographic profile, family history, and symptoms. Focus on explaining these actual risk drivers and how addressing modifiable lifestyle risk drivers can help reduce overall health risk.
 Create a customized regional diet plan (e.g., Indian foods if target language is Hindi/Gujarati).
 Create a customized exercise plan.
 Provide prevention tips.
@@ -622,6 +635,162 @@ Target Language: Respond ENTIRELY in ${targetLang}.`;
       return {
         review: fallbackReview,
         coaching: fallbackCoaching
+      };
+    }
+  }
+
+  /**
+   * Explains forecast trajectory based on actions
+   */
+  static async explainForecast(
+    userId: string,
+    currentRisk: number,
+    forecast: { days30: number; days90: number; days180: number },
+    actions: string[],
+    language: string
+  ): Promise<string> {
+    const snapshot = {
+      currentRisk,
+      forecast: `${forecast.days30},${forecast.days90},${forecast.days180}`,
+      actions: actions.join(","),
+      language,
+    };
+
+    const cached = await this.getCached(userId, "forecast_explanation", snapshot);
+    if (cached) return cached;
+
+    const key = this.getApiKey();
+    if (!key) {
+      return `If maintained consistently, your lifestyle improvements (${actions.join(", ")}) are projected to reduce your overall risk from ${currentRisk}% to ${forecast.days90}% in 90 days, and to ${forecast.days180}% in 180 days.`;
+    }
+
+    const targetLang = langName[language] || "English";
+    const prompt = `You are a clinical wellness coach. Explain the projected risk forecast trajectory to the user in a encouraging way.
+Current Overall Risk: ${currentRisk}%
+Forecasted Risk:
+- 30 Days: ${forecast.days30}%
+- 90 Days: ${forecast.days90}%
+- 180 Days: ${forecast.days180}%
+
+Selected Improvement Actions:
+${actions.map((a) => `- ${a}`).join("\n")}
+
+Explain the physiological mechanism of these improvements (e.g. why consistent habit adjustments result in risk drops over time, why it takes time for cardiovascular and glycemic markers to stabilize). Keep it simple, encouraging, and motivational. Do NOT make definite diagnostics or prescribe medications.
+Respond entirely in ${targetLang}.`;
+
+    try {
+      const text = await this.callGemini(prompt);
+      const sanitized = GuardrailsService.sanitizeText(text);
+      await this.saveCache(userId, "forecast_explanation", sanitized, snapshot);
+      return sanitized;
+    } catch (err) {
+      console.error("Failed to generate forecast explanation:", err);
+      return `If maintained consistently, these improvements are projected to reduce your risk over the next three to six months.`;
+    }
+  }
+
+  /**
+   * Generate an AI Coach nudge based on user risk profiles, drivers, actions, and behavioral signals.
+   */
+  static async generateCoachingNudge(
+    userId: string,
+    profile: UserProfile,
+    riskDrivers: any[],
+    actionImpacts: any[],
+    signal: { type: string; insight: string },
+    language: string
+  ): Promise<{ message: string; nextAction: string; encouragement: string }> {
+    const snapshot = {
+      profileAge: profile.age,
+      profileWeight: profile.weightKg,
+      signalType: signal.type,
+      driversCount: riskDrivers.length,
+      actionsCount: actionImpacts.length,
+      language,
+    };
+
+    const cached = await this.getCached(userId, `nudge_${signal.type}`, snapshot);
+    if (cached) return cached;
+
+    const key = this.getApiKey();
+    if (!key) {
+      // Deterministic fallback response based on signal type
+      let message = "Keep tracking your daily parameters to protect your vascular and metabolic health.";
+      let nextAction = "Log your weight or log a physical activity today.";
+      let encouragement = "Every small step counts towards a healthier you!";
+
+      if (signal.type === "risk_stagnant_30_days") {
+        message = "Your overall risk score hasn't moved much this month. Let's identify minor tweaks in your diet or activity that could unlock more progress.";
+        nextAction = "Schedule a 15-minute brisk walk after dinner.";
+        encouragement = "Plateaus are normal; consistency will eventually trigger positive change!";
+      } else if (signal.type === "risk_improved") {
+        message = "Fantastic job! Your risk score has dropped, which shows your dedication to physical activity and dietary control is paying off.";
+        nextAction = "Continue your current workout streak and log your parameters.";
+        encouragement = "You're building life-changing habits, keep the momentum going!";
+      } else if (signal.type === "repeated_high_sugar_scans") {
+        message = "Your recent food scans include several products containing elevated sugars, sodium, or saturated fats which conflict with your goals.";
+        nextAction = "Replace sweet beverages with fresh coconut water or buttermilk.";
+        encouragement = "Making mindful swaps is the easiest way to lower cardiovascular stress!";
+      } else if (signal.type === "simulates_but_no_progress") {
+        message = "You've successfully explored several What-If improvement plans, proving you are motivated to change. Now let's turn those goals into active habits.";
+        nextAction = "Log your weight and take a 10-minute walk today to start.";
+        encouragement = "Action cures hesitation. Start today, no matter how small!";
+      } else if (signal.type === "missed_progress_logging") {
+        message = "It has been over two weeks since your last health check-in. Consistent tracking is key to knowing where your health is heading.";
+        nextAction = "Take 30 seconds to log your weight and symptoms.";
+        encouragement = "We're here to guide you, let's get back on track!";
+      }
+
+      return { message, nextAction, encouragement };
+    }
+
+    const targetLang = langName[language] || "English";
+    const prompt = `You are an empathetic, clinical AI health coach. Generate a short, highly personalized coaching nudge based on the following:
+User Profile: Age ${profile.age}, Gender ${profile.gender}, Weight ${profile.weightKg}kg.
+Active Risk Drivers: ${JSON.stringify(riskDrivers)}
+Recommended Actions: ${JSON.stringify(actionImpacts)}
+Behavioral Signal Detected: "${signal.insight}" (Signal Type: ${signal.type})
+
+Generate exactly three fields:
+1. "message": One short coaching message (1-2 sentences) directly addressing the behavioral signal and explaining why it matters for their specific risk profile (e.g. if they have high sugar scans, explain how that affects their diabetes risk).
+2. "nextAction": A very specific, micro-actionable next step (e.g., "Log your weight today" or "Choose plain yogurt instead of Maggi next time").
+3. "encouragement": A warm, encouraging sign-off line (1 sentence).
+
+Avoid prescription drugs, definitive medical diagnostics, or long essays. Keep the entire tone concise and direct.
+Respond strictly in JSON matching the schema:
+{
+  "message": "...",
+  "nextAction": "...",
+  "encouragement": "..."
+}
+Respond ENTIRELY in ${targetLang}.`;
+
+    const schema = {
+      type: "object",
+      properties: {
+        message: { type: "string" },
+        nextAction: { type: "string" },
+        encouragement: { type: "string" }
+      },
+      required: ["message", "nextAction", "encouragement"]
+    };
+
+    try {
+      const text = await this.callGemini(prompt, schema);
+      const parsed = JSON.parse(text);
+
+      parsed.message = GuardrailsService.sanitizeText(parsed.message);
+      parsed.nextAction = GuardrailsService.sanitizeText(parsed.nextAction);
+      parsed.encouragement = GuardrailsService.sanitizeText(parsed.encouragement);
+
+      await this.saveCache(userId, `nudge_${signal.type}`, parsed, snapshot);
+      return parsed;
+    } catch (err) {
+      console.error("Failed to generate AI coaching nudge:", err);
+      return {
+        message: `Your behavior signals: ${signal.insight}`,
+        nextAction: "Perform one recommended health improvement action today.",
+        encouragement: "Stay consistent on your wellness journey!"
       };
     }
   }

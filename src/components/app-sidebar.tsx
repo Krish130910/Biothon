@@ -3,11 +3,13 @@ import {
   HeartPulse,
   ClipboardList,
   LayoutDashboard,
-  FileText,
   Info,
   LifeBuoy,
   User,
   ScanLine,
+  Brain,
+  Sparkles,
+  Activity,
 } from "lucide-react";
 import {
   Sidebar,
@@ -28,11 +30,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 
 const product = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/assessment", label: "Assessment", icon: ClipboardList },
-  { to: "/dashboard", label: "Risk Dashboard", icon: LayoutDashboard },
-  { to: "/report", label: "Health Report", icon: FileText },
-  { to: "/profile", label: "User Profile", icon: User },
-  { to: "/scanner", label: "Ingredient Scanner", icon: ScanLine },
+  { to: "/dashboard", search: { tab: "ai-coach" }, label: "AI Coach", icon: Brain },
+  { to: "/simulator", label: "Simulator", icon: Sparkles },
+  { to: "/dashboard", search: { tab: "progress" }, label: "Progress", icon: Activity },
+  { to: "/scanner", label: "Scanner", icon: ScanLine },
+  { to: "/profile", label: "Profile", icon: User },
 ];
 
 const more = [
@@ -44,6 +48,8 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const search = useRouterState({ select: (s) => s.location.search });
+  const tabParam = (search as any).tab;
   const [result] = useHealthResult();
 
   return (
@@ -61,7 +67,7 @@ export function AppSidebar() {
           </div>
           <div className="leading-tight min-w-0 transition-all duration-300 origin-left group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:pointer-events-none group-data-[state=collapsed]:scale-x-75 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:translate-x-4">
             <div className="font-display text-sm font-bold text-sidebar-foreground truncate tracking-wide">
-              HealthGuard
+               HealthGuard
             </div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-teal/85 truncate">
               Health Insights
@@ -79,9 +85,13 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="gap-1.5">
               {product.map((item) => {
-                const active = pathname === item.to;
+                const active = item.search
+                  ? pathname === item.to && tabParam === item.search.tab
+                  : item.to === "/dashboard"
+                    ? pathname === "/dashboard" && (!tabParam || tabParam === "overview")
+                    : pathname === item.to;
                 return (
-                  <SidebarMenuItem key={item.to}>
+                  <SidebarMenuItem key={item.label}>
                     <SidebarMenuButton
                       asChild
                       isActive={active}
@@ -95,6 +105,7 @@ export function AppSidebar() {
                     >
                       <Link
                         to={item.to}
+                        search={item.search}
                         className="flex items-center gap-3 w-full justify-start group-data-[collapsible=icon]:justify-center"
                       >
                         <div

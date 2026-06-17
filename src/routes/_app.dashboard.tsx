@@ -41,6 +41,8 @@ import {
   TrendingUp,
   Weight,
   Salad,
+  ScanLine,
+  Loader2,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -62,6 +64,11 @@ import jsPDF from "jspdf";
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: Dashboard,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      tab: (search.tab as string) || undefined,
+    };
+  },
 });
 
 function AnimatedScore({ score }: { score: number }) {
@@ -433,8 +440,253 @@ function Dashboard() {
     };
   } | null>(null);
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState("overview");
+  // Action Impact Engine State
+  interface ActionImpact {
+    id: string;
+    title: string;
+    category: string;
+    icon: string;
+    currentRisk: number;
+    projectedRisk: number;
+    absoluteReduction: number;
+    relativeReduction: number;
+    conditionImpact: { diabetes: number; heart: number; hypertension: number };
+  }
+  const [actionImpacts, setActionImpacts] = useState<ActionImpact[]>([]);
+  const [impactsLoading, setImpactsLoading] = useState(false);
+
+  // Recent food scan states
+  interface RecentScan {
+    productName: string;
+    personalizedScore: number;
+    foodScore: number;
+    riskLevel: string;
+    createdAt: string;
+    alternatives: string[];
+    recommendation: string;
+  }
+  const [recentScan, setRecentScan] = useState<RecentScan | null>(null);
+  const [scansLoading, setScansLoading] = useState(false);
+
+  // Forecast states
+  const [selectedForecastActions, setSelectedForecastActions] = useState<string[]>([]);
+  const [forecastResult, setForecastResult] = useState<any>(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
+
+  const handleForecastActionToggle = (actionKey: string) => {
+    setSelectedForecastActions((prev) =>
+      prev.includes(actionKey)
+        ? prev.filter((a) => a !== actionKey)
+        : [...prev, actionKey]
+    );
+  };
+
+  // Coach nudge states
+  interface CoachNudge {
+    signalType: string;
+    insight: string;
+    message: string;
+    nextAction: string;
+    encouragement: string;
+  }
+  const [coachNudge, setCoachNudge] = useState<CoachNudge | null>(null);
+  const [nudgeLoading, setNudgeLoading] = useState(false);
+
+  // Risk Drivers State
+  interface RiskDriver {
+    factor: string;
+    contribution: number;
+    modifiable: boolean;
+  }
+  const [riskDrivers, setRiskDrivers] = useState<RiskDriver[]>([]);
+  const [modifiableRisk, setModifiableRisk] = useState<number>(0);
+  const [nonModifiableRisk, setNonModifiableRisk] = useState<number>(0);
+  const [driversLoading, setDriversLoading] = useState(false);
+
+  // Fetch action impacts once result is available
+  useEffect(() => {
+    if (!result) return;
+    const fetchImpacts = async () => {
+      setImpactsLoading(true);
+      try {
+        let idToken = "mock-uid-guest";
+        if (auth.currentUser) idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch(`${API_URL}/api/actions/impact`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+          },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.success) setActionImpacts(data.data.recommendedActions.slice(0, 3));
+        }
+      } catch (err) {
+        console.error("Failed to fetch action impacts:", err);
+      } finally {
+        setImpactsLoading(false);
+      }
+    };
+    fetchImpacts();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  // Fetch risk drivers once result is available
+  useEffect(() => {
+    if (!result) return;
+    const fetchDrivers = async () => {
+      setDriversLoading(true);
+      try {
+        let idToken = "mock-uid-guest";
+        if (auth.currentUser) idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch(`${API_URL}/api/risk/drivers`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${idToken}`,
+          },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.success) {
+            setRiskDrivers(data.data.topDrivers);
+            setModifiableRisk(data.data.modifiableRisk);
+            setNonModifiableRisk(data.data.nonModifiableRisk);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch risk drivers:", err);
+      } finally {
+        setDriversLoading(false);
+      }
+    };
+    fetchDrivers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  // Fetch recent food scan once result is available
+  useEffect(() => {
+    if (!result) return;
+    const fetchRecentScan = async () => {
+      setScansLoading(true);
+      try {
+        let idToken = "mock-uid-guest";
+        if (auth.currentUser) idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch(`${API_URL}/api/food/recent`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${idToken}`,
+          },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.success && data.scan) {
+            setRecentScan(data.scan);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch recent scan:", err);
+      } finally {
+        setScansLoading(false);
+      }
+    };
+    fetchRecentScan();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  // Initialize selected actions from available profile conditions
+  useEffect(() => {
+    if (!profile) return;
+    const initialActions: string[] = [];
+    if (profile.exercise === "none" || profile.exercise === "light") {
+      initialActions.push("exercise_30_min");
+    }
+    const bmi = profile.weightKg / Math.pow(profile.heightCm / 100, 2);
+    if (bmi >= 25) {
+      initialActions.push("lose_weight");
+    }
+    if (profile.smoking === "current") {
+      initialActions.push("quit_smoking");
+    }
+    if (profile.alcohol && profile.alcohol !== "never") {
+      initialActions.push("limit_alcohol");
+    }
+    setSelectedForecastActions(initialActions);
+  }, [profile]);
+
+  // Fetch forecast whenever selected actions change or result is loaded
+  useEffect(() => {
+    if (!profile) return;
+    const fetchForecast = async () => {
+      setForecastLoading(true);
+      try {
+        let idToken = "mock-uid-guest";
+        if (auth.currentUser) idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch(`${API_URL}/api/predictions/forecast`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ actions: selectedForecastActions }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.success) {
+            setForecastResult(data);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch forecast:", err);
+      } finally {
+        setForecastLoading(false);
+      }
+    };
+    fetchForecast();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedForecastActions, result]);
+
+  // Fetch AI coach nudge once result is available
+  useEffect(() => {
+    if (!result) return;
+    const fetchNudge = async () => {
+      setNudgeLoading(true);
+      try {
+        let idToken = "mock-uid-guest";
+        if (auth.currentUser) idToken = await auth.currentUser.getIdToken();
+        const resp = await fetch(`${API_URL}/api/coach/behavior`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${idToken}`,
+          },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.success && data.nudge) {
+            setCoachNudge(data.nudge);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch coach nudge:", err);
+      } finally {
+        setNudgeLoading(false);
+      }
+    };
+    fetchNudge();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  // Tab State parsed from TanStack Router search params
+  const search = Route.useSearch();
+  const activeTab = search.tab || "overview";
+  const navigate = useNavigate();
+
+  const setActiveTab = (newTab: string) => {
+    navigate({
+      to: "/dashboard",
+      search: { tab: newTab === "overview" ? undefined : newTab },
+    });
+  };
 
   // Diet preference state
   const [dietPref, setDietPref] = useState<"indian-veg" | "indian-nonveg">("indian-veg");
@@ -719,6 +971,14 @@ function Dashboard() {
     Math.min(100, ((startWeight - currWeight) / Math.max(1, startWeight - goalWeight)) * 100),
   );
 
+  const bestPossibleScore = simulateHealthScore(profile, {
+    weightKg: Math.round(22 * Math.pow(profile.heightCm / 100, 2)),
+    exercise: "active",
+    smoking: "never",
+    sleepHours: 8
+  });
+  const maxReduction = Math.max(0, overall - bestPossibleScore);
+
   async function handleLogWeight() {
     if (!result || !profile) return;
     const w = parseFloat(logWeightVal);
@@ -775,61 +1035,86 @@ function Dashboard() {
           <Button asChild variant="outline">
             <Link to="/assessment">Re-run Assessment</Link>
           </Button>
-          <Button asChild className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-            <Link to="/report">
-              <Download className="h-4 w-4" /> Download Report
-            </Link>
+          <Button onClick={download} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer">
+            <Download className="h-4 w-4" /> Download Report
           </Button>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         {/* Main Navigation Tabs */}
-        <TabsList className="flex flex-wrap w-full bg-muted p-1 mb-8 gap-1 h-auto md:grid md:grid-cols-6 md:max-w-7xl">
-          <TabsTrigger value="overview" className="flex-1 py-2 cursor-pointer">
+        <TabsList className="grid w-full grid-cols-3 bg-muted p-1 mb-8 gap-1 max-w-2xl mx-auto rounded-lg">
+          <TabsTrigger value="overview" className="py-2.5 cursor-pointer">
             Summary
           </TabsTrigger>
-          <TabsTrigger value="risks" className="flex-1 py-2 cursor-pointer">
-            Your Risk Summary
+          <TabsTrigger value="ai-coach" className="py-2.5 cursor-pointer">
+            AI Coach
           </TabsTrigger>
-          <TabsTrigger value="diet" className="flex-1 py-2 cursor-pointer">
-            Diet Plan
-          </TabsTrigger>
-          <TabsTrigger value="fitness" className="flex-1 py-2 cursor-pointer">
-            Fitness Plan
-          </TabsTrigger>
-          <TabsTrigger value="progress" className="flex-1 py-2 cursor-pointer">
+          <TabsTrigger value="progress" className="py-2.5 cursor-pointer">
             Progress
-          </TabsTrigger>
-          <TabsTrigger value="reports" className="flex-1 py-2 cursor-pointer">
-            Reports
           </TabsTrigger>
         </TabsList>
 
-        {/* 1. OVERVIEW SUB-TAB */}
+        {/* 1. OVERVIEW/SUMMARY SUB-TAB */}
         <TabsContent value="overview" className="space-y-6">
-          <div className="rounded-xl border border-border/50 bg-surface-muted/20 p-4">
-            <h2 className="text-sm font-bold text-foreground">Welcome to Your Health Dashboard</h2>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              This page provides a quick look at your health scores, active vitals, and initial AI
-              recommendations. Use it to check your overall progress.
-            </p>
-          </div>
-          {/* Top row: Health Score, Biomarkers, AI Insights */}
+          {/* Health Coach Check-In Card */}
+          <Card className="border-border bg-surface shadow-card-soft overflow-hidden relative">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal via-primary to-accent" />
+            <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 rounded-full bg-teal/15 text-teal flex items-center justify-center shrink-0 mt-0.5">
+                  <Brain className="h-5 w-5 animate-pulse" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display text-sm font-bold text-foreground">
+                    Health Coach Check-In
+                  </h3>
+                  {nudgeLoading ? (
+                    <div className="h-4 w-32 bg-muted/40 animate-pulse rounded-lg mt-1" />
+                  ) : coachNudge ? (
+                    <>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                        {coachNudge.message} {coachNudge.encouragement}
+                      </p>
+                      <div className="mt-2.5 flex items-center gap-2 bg-teal/5 border border-teal/10 rounded-lg p-2 max-w-xl">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-teal font-mono shrink-0">
+                          Next Action:
+                        </span>
+                        <span className="text-xs font-semibold text-foreground leading-none">
+                          {coachNudge.nextAction}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      No active nudges. Keep recording parameters to receive personalized coaching logs.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Button
+                onClick={() => setActiveTab("ai-coach")}
+                className="bg-teal text-white hover:bg-teal/90 font-bold text-xs h-9 cursor-pointer self-stretch md:self-auto rounded-lg shrink-0"
+              >
+                Go to AI Coach
+              </Button>
+            </CardContent>
+          </Card>
+          {/* Top row: Health Score, Risk Breakdown, AI Insights */}
           <div className="grid gap-6 md:grid-cols-3">
-            {/* Card 1: Overall Health Score */}
+            {/* Card 1: Health Score */}
             <Card className="border-border bg-surface shadow-card-soft">
               <CardContent className="p-6 flex flex-col justify-between h-full">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                    Total Health Score
+                    Overall Risk
                   </div>
                   <div className="mt-4 flex items-baseline gap-2">
                     <span
                       className="font-display text-6xl font-bold tracking-tight"
                       style={{ color: overallColor }}
                     >
-                      <AnimatedScore score={overall} />
+                      <AnimatedScore score={overall} />%
                     </span>
                     <span className="text-sm font-medium text-muted-foreground">/ 80</span>
                   </div>
@@ -848,384 +1133,561 @@ function Dashboard() {
                     {result.overallRisk} Risk
                   </div>
                 </div>
-                <div className="mt-6">
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000"
-                      style={{ width: `${overallPct}%`, background: overallColor }}
-                    />
+                
+                <div className="mt-6 border-t border-border/40 pt-4 space-y-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                    Condition Risks Breakdown
                   </div>
-                  <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed">
-                    Total Health Score. Lower scores are better. It shows your overall risk based on
-                    your measurements, habits, and family history.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 2: Key Biomarkers */}
-            <Card className="border-border bg-surface shadow-card-soft">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 font-display text-base text-foreground font-semibold">
-                  <Activity className="h-4 w-4 text-teal" /> Your Body Measurements
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3.5 pt-2">
-                <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                      Body Mass Index (BMI)
-                    </div>
-                    <div className="font-display text-base font-bold mt-0.5">
-                      {result.bmi.toFixed(1)}
-                    </div>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] ${result.bmi >= 18.5 && result.bmi < 25 ? "border-success/30 text-success bg-success/5 animate-pulse" : "border-warning/30 text-warning bg-warning/5"}`}
-                  >
-                    {result.bmi >= 18.5 && result.bmi < 25 ? "Optimal" : "Review"}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                      Current Weight
-                    </div>
-                    <div className="font-display text-base font-bold mt-0.5">
-                      {profile.weightKg} kg
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground font-mono">
-                    {profile.heightCm} cm
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                      Age & Gender
-                    </div>
-                    <div className="font-display text-base font-bold mt-0.5">
-                      {profile.age} yrs · <span className="capitalize">{profile.gender}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 3: AI Insights */}
-            <Card className="border-border bg-surface shadow-card-soft">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 font-display text-base text-foreground font-semibold">
-                  <Sparkles className="h-4 w-4 text-teal" /> AI Insights & Priorities
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-1">
-                {/* Primary Risk Driver */}
-                <div className="flex items-start gap-2.5 rounded-lg border border-border bg-surface-muted/65 p-2.5">
-                  <div className="grid h-6 w-6 shrink-0 place-items-center rounded bg-danger/10 text-danger text-xs font-bold mt-0.5">
-                    !
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">Primary Risk Driver</div>
-                    <p className="text-xs font-semibold text-foreground mt-0.5">
-                      {result.factors && result.factors.length > 0 ? result.factors[0].name : "Normal baseline factors"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Best Improvement */}
-                <div className="flex items-start gap-2.5 rounded-lg border border-border bg-surface-muted/65 p-2.5">
-                  <Dumbbell className="mt-1 h-4 w-4 shrink-0 text-teal" />
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">Best Improvement Action</div>
-                    <p className="text-xs font-semibold text-foreground mt-0.5">
-                      {result.actionPriorities && result.actionPriorities.length > 0 ? result.actionPriorities[0].action : "Continue maintaining healthy habits"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Expected Benefit */}
-                <div className="flex items-start gap-2.5 rounded-lg border border-border bg-surface-muted/65 p-2.5">
-                  <TrendingDown className="mt-1 h-4 w-4 shrink-0 text-success" />
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">Expected Overall Benefit</div>
-                    <p className="text-xs font-semibold text-success mt-0.5">
-                      {result.actionPriorities && result.actionPriorities.length > 0 
-                        ? `${Math.abs(result.actionPriorities[0].estimatedImpact)}% risk score reduction` 
-                        : "Healthy profile baseline"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Proactive What-If Potential Improvements Card */}
-          <Card className="border-border bg-surface shadow-card-soft overflow-hidden relative">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal via-primary to-accent" />
-            <CardHeader className="pb-2">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <CardTitle className="font-display text-base font-bold text-foreground flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-teal animate-pulse" /> Potential Health Improvements
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Proactive simulation of lifestyle adjustments and their forecasted impact on your overall risk.
-                  </p>
-                </div>
-                <Button asChild size="sm" className="bg-teal text-white hover:bg-teal/90 gap-1.5 text-xs font-semibold cursor-pointer shrink-0 self-start sm:self-auto">
-                  <Link to="/simulator">
-                    <span>Try Simulator</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {/* Current Risk Badge */}
-                <div className="flex flex-col justify-center rounded-lg border border-border bg-accent/10 p-4">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">Current Overall Risk</span>
-                  <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="font-display text-4xl font-extrabold text-foreground">{overall}%</span>
-                    <span className="text-xs text-muted-foreground">/ 80</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-                    Based on your active clinical metrics and lifestyle profile.
-                  </p>
-                </div>
-
-                {/* Lose 5kg simulation */}
-                <div className="flex flex-col justify-between rounded-lg border border-border bg-surface-muted/20 p-4 hover:border-teal/30 hover:bg-teal/5 transition-all">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="grid h-7 w-7 place-items-center rounded-md bg-teal/10 text-teal">
-                        <TrendingDown className="h-3.5 w-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-foreground">Lose 5 kg</span>
-                    </div>
-                    <Badge variant="secondary" className="bg-teal/10 text-teal border border-teal/20 text-[10px] font-mono font-bold animate-none">
-                      {overall - simulateHealthScore(profile, { weightKg: Math.max(40, profile.weightKg - 5) }) > 0 
-                        ? `-${overall - simulateHealthScore(profile, { weightKg: Math.max(40, profile.weightKg - 5) })}%` 
-                        : "0%"}
-                    </Badge>
-                  </div>
-                  <div className="mt-4">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">Projected Risk</div>
-                    <div className="font-display text-2xl font-extrabold text-teal mt-0.5">
-                      {simulateHealthScore(profile, { weightKg: Math.max(40, profile.weightKg - 5) })}%
-                    </div>
-                  </div>
-                </div>
-
-                {/* Exercise simulation */}
-                <div className="flex flex-col justify-between rounded-lg border border-border bg-surface-muted/20 p-4 hover:border-teal/30 hover:bg-teal/5 transition-all">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="grid h-7 w-7 place-items-center rounded-md bg-teal/10 text-teal">
-                        <Dumbbell className="h-3.5 w-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-foreground">Exercise Daily</span>
-                    </div>
-                    <Badge variant="secondary" className="bg-teal/10 text-teal border border-teal/20 text-[10px] font-mono font-bold animate-none">
-                      {overall - simulateHealthScore(profile, { exercise: "moderate" }) > 0 
-                        ? `-${overall - simulateHealthScore(profile, { exercise: "moderate" })}%` 
-                        : "0%"}
-                    </Badge>
-                  </div>
-                  <div className="mt-4">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">Projected Risk</div>
-                    <div className="font-display text-2xl font-extrabold text-teal mt-0.5">
-                      {simulateHealthScore(profile, { exercise: "moderate" })}%
-                    </div>
-                  </div>
-                </div>
-
-                {/* Conditional Smoking or Sleep simulation */}
-                {profile.smoking === "current" ? (
-                  <div className="flex flex-col justify-between rounded-lg border border-border bg-surface-muted/20 p-4 hover:border-teal/30 hover:bg-teal/5 transition-all">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="grid h-7 w-7 place-items-center rounded-md bg-teal/10 text-teal">
-                          <Activity className="h-3.5 w-3.5" />
+                  {[
+                    { name: "Diabetes", value: result.risk.diabetes },
+                    { name: "Heart Disease", value: result.risk.heartDisease },
+                    { name: "Hypertension", value: result.risk.hypertension },
+                  ].map((r) => {
+                    const c = colorFor(r.value);
+                    return (
+                      <div key={r.name} className="space-y-1">
+                        <div className="flex justify-between text-xs font-semibold">
+                          <span className="text-muted-foreground">{r.name}</span>
+                          <span style={{ color: c }}>{r.value}%</span>
                         </div>
-                        <span className="text-xs font-bold text-foreground">Quit Smoking</span>
+                        <div className="h-1.5 w-full bg-muted/60 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${r.value}%`, backgroundColor: c }}
+                          />
+                        </div>
                       </div>
-                      <Badge variant="secondary" className="bg-teal/10 text-teal border border-teal/20 text-[10px] font-mono font-bold animate-none">
-                        {overall - simulateHealthScore(profile, { smoking: "never" }) > 0 
-                          ? `-${overall - simulateHealthScore(profile, { smoking: "never" })}%` 
-                          : "0%"}
-                      </Badge>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 2: Primary Risk Drivers */}
+            <Card className="border-border bg-surface shadow-card-soft">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 font-display text-base text-foreground font-semibold">
+                  <Brain className="h-4 w-4 text-teal animate-pulse-slow" /> Primary Risk Drivers
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-1 flex flex-col justify-between h-[calc(100%-60px)]">
+                {driversLoading ? (
+                  <div className="flex flex-col gap-3.5 py-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-5 bg-muted/40 animate-pulse rounded-lg" />
+                    ))}
+                    <div className="mt-4 h-12 bg-muted/30 animate-pulse rounded-lg" />
+                  </div>
+                ) : riskDrivers.length > 0 ? (
+                  <div className="flex flex-col justify-between h-full space-y-4">
+                    {/* Top Drivers List */}
+                    <div className="space-y-3">
+                      {riskDrivers.slice(0, 3).map((driver, index) => (
+                        <div key={index} className="flex justify-between items-center text-xs font-semibold">
+                          <span className="text-foreground flex items-center gap-2">
+                            <span className="text-teal font-bold">{index + 1}.</span>
+                            <span>{driver.factor}</span>
+                          </span>
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            {driver.contribution}%
+                          </Badge>
+                        </div>
+                      ))}
                     </div>
-                    <div className="mt-4">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">Projected Risk</div>
-                      <div className="font-display text-2xl font-extrabold text-teal mt-0.5">
-                        {simulateHealthScore(profile, { smoking: "never" })}%
+
+                    {/* Risk Composition Visual Indicators */}
+                    <div className="border-t border-border/40 pt-3 space-y-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                        Your Risk Composition
+                      </div>
+                      
+                      {/* Modifiable Risk */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs font-semibold">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-teal" /> Lifestyle Factors (Modifiable)
+                          </span>
+                          <span className="text-teal font-mono font-bold">{modifiableRisk}%</span>
+                        </div>
+                        <div className="h-2 w-full bg-muted/65 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-teal rounded-full transition-all duration-500"
+                            style={{ width: `${modifiableRisk}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Non-Modifiable Risk */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs font-semibold">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Fixed Factors (Age / History)
+                          </span>
+                          <span className="text-amber-500 font-mono font-bold">{nonModifiableRisk}%</span>
+                        </div>
+                        <div className="h-2 w-full bg-muted/65 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                            style={{ width: `${nonModifiableRisk}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col justify-between rounded-lg border border-border bg-surface-muted/20 p-4 hover:border-teal/30 hover:bg-teal/5 transition-all">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="grid h-7 w-7 place-items-center rounded-md bg-teal/10 text-teal">
-                          <Moon className="h-3.5 w-3.5" />
-                        </div>
-                        <span className="text-xs font-bold text-foreground">Optimize Sleep</span>
-                      </div>
-                      <Badge variant="secondary" className="bg-teal/10 text-teal border border-teal/20 text-[10px] font-mono font-bold animate-none">
-                        {overall - simulateHealthScore(profile, { sleepHours: 8 }) > 0 
-                          ? `-${overall - simulateHealthScore(profile, { sleepHours: 8 })}%` 
-                          : "0%"}
-                      </Badge>
-                    </div>
-                    <div className="mt-4">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">Projected Risk</div>
-                      <div className="font-display text-2xl font-extrabold text-teal mt-0.5">
-                        {simulateHealthScore(profile, { sleepHours: 8 })}%
-                      </div>
-                    </div>
+                  <div className="flex flex-col items-center justify-center py-6 text-center text-xs text-muted-foreground">
+                    <Sparkles className="h-8 w-8 text-teal/40 mb-2" />
+                    <span>No active risk drivers identified. Your health profile looks excellent!</span>
                   </div>
                 )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Visual Journey Map (Moved below top cards for clinical prioritization) */}
-          <Card className="border-border bg-surface shadow-card-soft">
-            <CardContent className="p-6">
-              <div className="text-xs font-semibold uppercase tracking-wider text-teal mb-4 font-mono">
-                Your Next Steps
-              </div>
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative">
-                {/* Connecting line for desktop */}
-                <div className="hidden md:block absolute top-[18px] left-[10%] right-[10%] h-0.5 bg-muted z-0" />
-
-                {[
-                  {
-                    title: "Assessment Complete",
-                    desc: "Questionnaire submitted & verified",
-                    status: "completed",
-                  },
-                  {
-                    title: "Risk Analysis Insights",
-                    desc: "Numerical risk scoring generated",
-                    status: "completed",
-                  },
-                  {
-                    title: "Personalized Recommendations",
-                    desc: "Diet & lifestyle plan customized",
-                    status: "current",
-                  },
-                  {
-                    title: "Progress Tracking",
-                    desc: "Log biomarkers longitudinal trend",
-                    status: "upcoming",
-                  },
-                ].map((step, idx) => {
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-start md:flex-col md:items-center gap-3 md:gap-2.5 z-10 md:text-center md:flex-1 relative"
-                    >
-                      <div
-                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition-colors ${
-                          step.status === "completed"
-                            ? "bg-teal border-teal text-white shadow-sm"
-                            : step.status === "current"
-                              ? "bg-primary border-primary text-primary-foreground shadow-sm"
-                              : "bg-surface border-muted text-muted-foreground"
-                        }`}
-                      >
-                        {idx + 1}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-display text-sm font-semibold text-foreground">
-                          {step.title}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">{step.desc}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border bg-surface shadow-card-soft">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="font-display text-base">Your Daily Healthy Habits</CardTitle>
-                <span className="text-xs text-muted-foreground">
-                  {new Date().toLocaleDateString(undefined, {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {dailyPreventionGoals.map((g) => (
-                <label
-                  key={g.label}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface-muted/40 p-3 transition-colors hover:bg-accent/40"
-                >
-                  <Checkbox className="data-[state=checked]:bg-teal data-[state=checked]:border-teal" />
-                  <g.icon className="h-4 w-4 shrink-0 text-teal" />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{g.label}</div>
-                    <div className="text-[11px] text-muted-foreground">Target: {g.target}</div>
-                  </div>
-                </label>
-              ))}
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="border-border shadow-card-soft lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 font-display text-base">
-                  <ClipboardCheck className="h-4 w-4 text-teal" /> Lifestyle Improvements
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {lifestyleRecommendations.map((l) => (
-                  <div
-                    key={l.area}
-                    className="flex items-start gap-4 rounded-lg border border-border bg-surface p-4"
-                  >
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-accent text-teal">
-                      <Activity className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="font-display text-sm font-semibold">{l.area}</div>
-                        <Badge
-                          variant="outline"
-                          className={
-                            l.priority === "High"
-                              ? "border-danger text-danger bg-danger/5"
-                              : l.priority === "Medium"
-                                ? "border-warning text-warning bg-warning/5"
-                                : "border-success text-success bg-success/5"
-                          }
-                        >
-                          {l.priority}
-                        </Badge>
-                      </div>
-                      <p className="mt-1 text-sm text-muted-foreground">{l.action}</p>
-                    </div>
-                  </div>
-                ))}
               </CardContent>
             </Card>
 
-            <Card className="border-border shadow-card-soft">
+            {/* Card 3: Highest Impact Actions */}
+            <Card className="relative border-border bg-surface shadow-card-soft overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal to-primary opacity-60" />
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 font-display text-base text-foreground font-semibold">
+                  <TrendingDown className="h-4 w-4 text-teal" /> Highest Impact Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-1">
+                {impactsLoading ? (
+                  <div className="flex flex-col gap-2.5">
+                    {[1,2,3].map(i => (
+                      <div key={i} className="h-16 rounded-lg bg-muted/40 animate-pulse" />
+                    ))}
+                  </div>
+                ) : actionImpacts.length > 0 ? (
+                  <div className="flex flex-col gap-2.5">
+                    {actionImpacts.map((action, idx) => {
+                      const rankColors = ["text-amber-500", "text-slate-400", "text-orange-700"];
+                      const badgeColors = [
+                        "bg-teal/10 text-teal border-teal/20",
+                        "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                        "bg-purple-500/10 text-purple-400 border-purple-500/20",
+                      ];
+                      return (
+                        <div
+                          key={action.id}
+                          className="flex items-center gap-3 rounded-lg border border-border bg-surface-muted/50 p-2.5 hover:bg-accent/20 transition-colors"
+                        >
+                          {/* Rank */}
+                          <div className={`text-base font-bold w-5 shrink-0 ${rankColors[idx]}`}>
+                            {idx + 1}
+                          </div>
+                          {/* Icon + Title */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm">{action.icon}</span>
+                              <p className="text-xs font-semibold text-foreground truncate">{action.title}</p>
+                            </div>
+                            {/* Risk arrow */}
+                            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-muted-foreground font-mono">
+                              <span className="font-semibold" style={{ color: colorFor(action.currentRisk) }}>{action.currentRisk}%</span>
+                              <span>→</span>
+                              <span className="font-semibold text-teal">{action.projectedRisk}%</span>
+                            </div>
+                          </div>
+                          {/* Reduction badge */}
+                          <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeColors[idx]}`}>
+                            -{action.absoluteReduction} pts
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {/* Fallback to static actionPriorities from result */}
+                    {result.actionPriorities && result.actionPriorities.length > 0 ? (
+                      result.actionPriorities.slice(0, 3).map((p, i) => (
+                        <div key={i} className="flex items-start gap-2.5 rounded-lg border border-border bg-surface-muted/65 p-2.5">
+                          <TrendingDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-foreground">{p.action}</p>
+                            <p className="text-[10px] text-teal mt-0.5">↓ {Math.abs(p.estimatedImpact)} pts estimated</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex items-center gap-2 rounded-lg border border-teal/20 bg-teal/5 p-3">
+                        <Sparkles className="h-4 w-4 text-teal shrink-0" />
+                        <p className="text-xs text-teal font-medium">Your profile is well-optimised. Keep up the healthy habits!</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Grid for Simulator Preview & Recent Food Impact */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Simulator Preview Card */}
+            <Card className="border-border bg-surface shadow-card-soft overflow-hidden relative flex flex-col justify-between">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal via-primary to-accent" />
+              <CardHeader className="pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <CardTitle className="font-display text-base font-bold text-foreground flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-teal animate-pulse" /> What-If Simulator Preview
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Proactive simulation of lifestyle adjustments and their forecasted impact on your overall risk.
+                    </p>
+                  </div>
+                  <Button asChild size="sm" className="bg-teal text-white hover:bg-teal/90 gap-1.5 text-xs font-semibold cursor-pointer shrink-0 self-start sm:self-auto">
+                    <Link to="/simulator">
+                      <span>Open Simulator →</span>
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-2 flex-1 flex flex-col justify-center">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {/* Current Risk Badge */}
+                  <div className="flex flex-col justify-center rounded-lg border border-border bg-accent/10 p-4">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">Current Risk</span>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      <span className="font-display text-4xl font-extrabold text-foreground">{overall}%</span>
+                      <span className="text-xs text-muted-foreground">/ 80</span>
+                    </div>
+                  </div>
+
+                  {/* Best Possible Reduction simulation */}
+                  <div className="flex flex-col justify-between rounded-lg border border-border bg-teal/5 p-4 border-teal/20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-teal font-mono">Best Possible Reduction</span>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      <span className="font-display text-4xl font-extrabold text-teal">
+                        -{maxReduction}%
+                      </span>
+                      <span className="text-xs text-muted-foreground">risk score reduction</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Recent Food Impact Card */}
+            <Card className="border-border bg-surface shadow-card-soft overflow-hidden relative flex flex-col justify-between">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal via-primary to-accent" />
+              <CardHeader className="pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <CardTitle className="font-display text-base font-bold text-foreground flex items-center gap-2">
+                      <ScanLine className="h-4 w-4 text-teal animate-pulse" /> Recent Food Impact
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Last scanned food and its personalized impact on your clinical risk profile.
+                    </p>
+                  </div>
+                  <Button asChild size="sm" className="bg-teal text-white hover:bg-teal/90 gap-1.5 text-xs font-semibold cursor-pointer shrink-0 self-start sm:self-auto">
+                    <Link to="/scanner">
+                      <span>Open Scanner →</span>
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-2 flex-1 flex flex-col justify-center">
+                {scansLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-6 w-6 animate-spin text-teal" />
+                  </div>
+                ) : recentScan ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-border/40 pb-3">
+                      <div>
+                        <h4 className="text-sm font-bold text-foreground truncate max-w-[200px]">
+                          {recentScan.productName}
+                        </h4>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          Scanned on {new Date(recentScan.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+
+                      {/* Scores & Badge */}
+                      <div className="flex items-center gap-3 bg-surface-muted/20 border border-border/40 p-2 rounded-xl">
+                        <div className="text-right">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block">Food/Pers.</span>
+                          <span className="text-xs font-bold text-foreground">
+                            {recentScan.foodScore}/10 → <span className={
+                              recentScan.personalizedScore >= 8 ? "text-green-500" :
+                              recentScan.personalizedScore >= 5 ? "text-yellow-500" :
+                              "text-red-500"
+                            }>{recentScan.personalizedScore}/10</span>
+                          </span>
+                        </div>
+                        <Badge className={`text-[9px] font-bold ${
+                          recentScan.personalizedScore >= 8 ? "bg-green-500/10 text-green-500 border-green-500/20" :
+                          recentScan.personalizedScore >= 5 ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" :
+                          "bg-red-500/10 text-red-500 border-red-500/20"
+                        } border`}>
+                          {recentScan.riskLevel}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Recommendation Snippet */}
+                    <div className="text-xs bg-surface-muted/40 p-2.5 rounded-lg border border-border/30">
+                      <p className="line-clamp-2 italic text-muted-foreground leading-relaxed">
+                        "{recentScan.recommendation}"
+                      </p>
+                    </div>
+
+                    {/* Alternatives */}
+                    {recentScan.alternatives && recentScan.alternatives.length > 0 && (
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-teal">Alternatives:</span>
+                        {recentScan.alternatives.slice(0, 2).map((alt, i) => (
+                          <Badge key={i} variant="outline" className="text-[10px] py-0.5 px-2 bg-teal/5 text-teal border-teal/10 font-medium">
+                            {alt}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center py-6 text-xs text-muted-foreground border-2 border-dashed border-border/80 rounded-xl bg-surface-muted/10">
+                    <ScanLine className="h-8 w-8 text-teal/40 mb-2" />
+                    <span>No scanned items yet. Scan an ingredient list to see your personalized score.</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Health Trajectory Forecast Card */}
+          <Card className="border-border bg-surface shadow-card-soft overflow-hidden relative">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal via-primary to-accent" />
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display text-base font-bold text-foreground flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-teal animate-pulse" /> Health Trajectory Forecast
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Predict where your chronic health risk is heading based on your planned lifestyle improvements.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-2 space-y-6">
+              {/* Scenario Modifiers Selector */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                  Compare Scenarios (Select lifestyle adjustments):
+                </h4>
+                <div className="flex flex-wrap gap-3">
+                  {profile && (profile.exercise === "none" || profile.exercise === "light") && (
+                    <button
+                      onClick={() => handleForecastActionToggle("exercise_30_min")}
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold cursor-pointer transition-all ${
+                        selectedForecastActions.includes("exercise_30_min")
+                          ? "bg-teal/15 text-teal border-teal/40 animate-pulse-slow"
+                          : "border-border bg-surface hover:bg-accent/40"
+                      }`}
+                    >
+                      <Dumbbell className="h-3.5 w-3.5" /> Exercise 30 min/day
+                    </button>
+                  )}
+                  {profile && (profile.weightKg / Math.pow(profile.heightCm / 100, 2)) >= 25 && (
+                    <button
+                      onClick={() => handleForecastActionToggle("lose_weight")}
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold cursor-pointer transition-all ${
+                        selectedForecastActions.includes("lose_weight")
+                          ? "bg-teal/15 text-teal border-teal/40 animate-pulse-slow"
+                          : "border-border bg-surface hover:bg-accent/40"
+                      }`}
+                    >
+                      <Weight className="h-3.5 w-3.5" /> Lose Weight
+                    </button>
+                  )}
+                  {profile && profile.smoking === "current" && (
+                    <button
+                      onClick={() => handleForecastActionToggle("quit_smoking")}
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold cursor-pointer transition-all ${
+                        selectedForecastActions.includes("quit_smoking")
+                          ? "bg-teal/15 text-teal border-teal/40 animate-pulse-slow"
+                          : "border-border bg-surface hover:bg-accent/40"
+                      }`}
+                    >
+                      <HeartPulse className="h-3.5 w-3.5" /> Quit Smoking
+                    </button>
+                  )}
+                  {profile && profile.alcohol && profile.alcohol !== "never" && (
+                    <button
+                      onClick={() => handleForecastActionToggle("limit_alcohol")}
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold cursor-pointer transition-all ${
+                        selectedForecastActions.includes("limit_alcohol")
+                          ? "bg-teal/15 text-teal border-teal/40 animate-pulse-slow"
+                          : "border-border bg-surface hover:bg-accent/40"
+                      }`}
+                    >
+                      <Salad className="h-3.5 w-3.5" /> Limit Alcohol
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Trajectory visualization */}
+              {forecastResult ? (
+                <div className="grid gap-6 md:grid-cols-3 items-center border-t border-border/40 pt-4">
+                  {/* Left Column: Trend Points */}
+                  <div className="md:col-span-2 space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                      Projected Chronic Risk (lower is better)
+                    </h4>
+                    
+                    <div className="grid grid-cols-4 gap-2 text-center relative py-4">
+                      {/* Connector Line */}
+                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-border/60 -translate-y-1/2 z-0" />
+                      
+                      {[
+                        { label: "Today", value: forecastResult.currentRisk, confidence: "High" },
+                        { label: "30 Days", value: forecastResult.days30.risk, confidence: forecastResult.days30.confidence },
+                        { label: "90 Days", value: forecastResult.days90.risk, confidence: forecastResult.days90.confidence },
+                        { label: "180 Days", value: forecastResult.days180.risk, confidence: forecastResult.days180.confidence }
+                      ].map((pt, i) => (
+                        <div key={i} className="flex flex-col items-center z-10 relative">
+                          <div className={`h-10 w-10 rounded-full border-2 flex items-center justify-center font-display font-black text-xs shadow-md bg-surface ${
+                            pt.value < 33 ? "border-green-500 text-green-500 animate-pulse-slow" :
+                            pt.value < 66 ? "border-amber-500 text-amber-500" :
+                            "border-red-500 text-red-500"
+                          }`}>
+                            {pt.value}%
+                          </div>
+                          <span className="text-[10px] font-bold text-foreground mt-2">{pt.label}</span>
+                          <span className="text-[8px] font-medium text-muted-foreground mt-0.5">Conf: {pt.confidence}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Score Summary */}
+                  <div className="bg-surface-muted/20 border border-border/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center space-y-3">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                        Future Health Score
+                      </div>
+                      <div className="mt-1 flex items-baseline gap-1.5 justify-center">
+                        <span className="font-display text-3xl font-extrabold text-teal">
+                          {Math.round(100 - forecastResult.days180.risk)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">/ 100</span>
+                      </div>
+                      <span className="text-[9px] text-muted-foreground block mt-0.5">
+                        Current: {Math.round(100 - forecastResult.currentRisk)}/100
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-teal/10 rounded-lg p-2 border border-teal/20">
+                      <span className="text-[10px] font-bold text-teal block leading-tight">
+                        Projected Health Score: {Math.round(100 - forecastResult.days180.risk)}
+                      </span>
+                      <span className="text-[9px] text-teal/80 block mt-0.5 font-medium leading-normal">
+                        if recommendations are followed.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-teal" />
+                </div>
+              )}
+
+              {/* AI Coaching Explanation box */}
+              {forecastResult && forecastResult.explanation && (
+                <div className="rounded-xl border border-border bg-surface-muted/30 p-4 shadow-sm space-y-2 relative">
+                  {forecastLoading && (
+                    <div className="absolute inset-0 bg-surface/50 flex items-center justify-center backdrop-blur-[1px] rounded-xl z-20">
+                      <Loader2 className="h-5 w-5 animate-spin text-teal" />
+                    </div>
+                  )}
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-teal flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 animate-pulse" /> AI Forecast Trajectory Insight
+                  </div>
+                  <p className="text-xs leading-relaxed text-foreground/90 font-medium">
+                    "{forecastResult.explanation}"
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Progress Snapshot Area Chart */}
+          <Card className="border-border shadow-card-soft">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display text-base">Progress Snapshot</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[260px] pt-0">
+              {progressChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={progressChartData}
+                    margin={{ top: 10, right: 16, left: -10, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="gScore" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={CHART_NAVY} stopOpacity={0.4} />
+                        <stop offset="100%" stopColor={CHART_NAVY} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="date" fontSize={11} stroke="var(--muted-foreground)" />
+                    <YAxis fontSize={11} stroke="var(--muted-foreground)" />
+                    <Tooltip />
+                    <Area
+                      type="monotone"
+                      dataKey="score"
+                      stroke={CHART_NAVY}
+                      strokeWidth={2}
+                      fill="url(#gScore)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Log your weight or run multiple assessments to see your overall risk trend.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 2. AI COACH SUB-TAB */}
+        <TabsContent value="ai-coach" className="space-y-6">
+          {coachNudge ? (
+            <Card className="border-border bg-surface shadow-card-soft overflow-hidden relative">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal via-primary to-accent" />
+              <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+                <div className="flex items-start gap-4">
+                  <div className="h-10 w-10 rounded-full bg-teal/15 text-teal flex items-center justify-center shrink-0 mt-0.5">
+                    <Target className="h-5 w-5 text-teal animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-sm font-bold text-foreground">
+                      This Week's Focus
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed font-semibold text-teal">
+                      "{coachNudge.nextAction}" — {coachNudge.encouragement}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="rounded-xl border border-border/50 bg-surface-muted/20 p-4">
+              <h2 className="text-sm font-bold text-foreground">AI Coach Recommendations</h2>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Explore your personalized risk analysis, regionally customized diet, physical fitness plans, and clinical screening directives.
+              </p>
+            </div>
+          )}
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Suggested Screenings */}
+            <Card className="border-border shadow-card-soft lg:col-span-1">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-display text-base">
-                  <Stethoscope className="h-4 w-4 text-teal" /> Suggested Health Checks
+                  <Stethoscope className="h-4 w-4 text-teal" /> Recommended Medical Screenings
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -1244,472 +1706,277 @@ function Dashboard() {
                 ))}
               </CardContent>
             </Card>
-          </div>
 
-          <Card className="border-border shadow-card-soft">
-            <CardHeader>
-              <CardTitle className="font-display text-base">AI Health Explanation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm max-w-none prose-headings:font-display prose-headings:tracking-tight">
-                <ReactMarkdown>{result.preventionTips}</ReactMarkdown>
+            {/* Condition-Specific Detailed Risks */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider font-mono">
+                Disease-Specific Insights (Click cards to expand clinical rationale)
               </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-3 md:grid-cols-4">
-            {[
-              { tab: "risks", label: "Your Risk Summary", icon: Activity },
-              { tab: "diet", label: "Diet Plan", icon: Brain },
-              { tab: "fitness", label: "Fitness Plan", icon: HeartPulse },
-              { tab: "reports", label: "Printable Reports", icon: Download },
-            ].map((q) => {
-              return (
-                <button
-                  key={q.tab}
-                  onClick={() => setActiveTab(q.tab)}
-                  className="group flex w-full items-center justify-between rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:border-teal/50 hover:bg-accent/30 cursor-pointer animate-none"
-                >
-                  <span className="flex items-center gap-3">
-                    <q.icon className="h-4 w-4 text-teal" />
-                    <span className="text-sm font-medium">{q.label}</span>
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </button>
-              );
-            })}
-          </div>
-        </TabsContent>
-
-        {/* 2. DISEASE RISKS SUB-TAB */}
-        <TabsContent value="risks" className="space-y-6">
-          <div className="rounded-xl border border-border/50 bg-surface-muted/20 p-4">
-            <h2 className="text-sm font-bold text-foreground">Your Risk Summary</h2>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              This page shows your estimated risk for Diabetes, Hypertension, and Heart Disease.
-              These scores represent potential risk based on lifestyle and clinical guidelines, not
-              formal diagnoses. Click on any card below to see more detailed AI rationales and
-              suggested modifications.
-            </p>
-          </div>
-          <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground">
-            ⚠️ <span className="font-semibold text-foreground">Educational Risk Assessment:</span>{" "}
-            The risk ratings below represent statistical estimates for educational and preventive
-            guidance, not medical or clinical diagnoses. For medical diagnostics or clinical exams,
-            please consult a primary care physician.
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="border-border shadow-card-soft lg:col-span-1">
-              <CardHeader className="pb-2">
-                <CardTitle className="font-display text-base">Risk by Condition</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[220px] pt-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadialBarChart
-                    innerRadius="30%"
-                    outerRadius="100%"
-                    data={riskData}
-                    startAngle={90}
-                    endAngle={-270}
-                  >
-                    <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                    <RadialBar background dataKey="value" cornerRadius={6} />
-                    <Tooltip />
-                  </RadialBarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border shadow-card-soft lg:col-span-2">
-              <CardHeader className="pb-2">
-                <CardTitle className="font-display text-base">Your Risk Trend Over Time</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Estimated risk levels over the next 12 months with and without making healthy
-                  changes.
-                </p>
-              </CardHeader>
-              <CardContent className="h-[220px] pt-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gPlan" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={CHART_TEAL} stopOpacity={0.4} />
-                        <stop offset="100%" stopColor={CHART_TEAL} stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="gNone" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={CHART_RED} stopOpacity={0.3} />
-                        <stop offset="100%" stopColor={CHART_RED} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="month" stroke="var(--muted-foreground)" fontSize={11} />
-                    <YAxis stroke="var(--muted-foreground)" fontSize={11} />
-                    <Tooltip />
-                    <Area
-                      type="monotone"
-                      dataKey="No change"
-                      stroke={CHART_RED}
-                      strokeWidth={2}
-                      fill="url(#gNone)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="With plan"
-                      stroke={CHART_TEAL}
-                      strokeWidth={2}
-                      fill="url(#gPlan)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              {
-                k: "diabetes",
-                label: "Diabetes (Type 2)",
-                v: result.risk.diabetes,
-                why: result.rationale.diabetes,
-                tips: "Monitor daily sugar and glycemic index, adhere to the regional vegetable/fiber diet, perform 30+ minutes of aerobic training, and schedule quarterly fasting blood tests.",
-                factors: ["BMI", "Family History", "Physical Activity", "Age", "Lifestyle Habits"],
-              },
-              {
-                k: "heart",
-                label: "Heart Disease",
-                v: result.risk.heartDisease,
-                why: result.rationale.heartDisease,
-                tips: "Minimize sodium and trans-fat intake, integrate heart-rate-raising cardio exercises, track blood pressure, and review lipid markers annually.",
-                factors: ["Exercise Frequency", "Smoking Status", "Age", "Weight Profile"],
-              },
-              {
-                k: "htn",
-                label: "Hypertension",
-                v: result.risk.hypertension,
-                why: result.rationale.hypertension,
-                tips: "Reduce sodium load to <1,500mg, log blood pressure weekly, implement structured recovery breathing, and quit/avoid nicotine completely.",
-                factors: ["Weight", "Activity Level", "Family History", "Age"],
-              },
-            ].map((r) => {
-              const c = colorFor(r.v);
-              const isExpanded = expandedCard === r.k;
-              return (
-                <Card
-                  key={r.k}
-                  className={`border border-border bg-surface shadow-card-soft transition-all duration-300 cursor-pointer hover:border-teal/30 hover:bg-accent/5 ${
-                    isExpanded ? "ring-1 ring-primary/20 md:col-span-3 sm:col-span-2" : ""
-                  }`}
-                  onClick={() => setExpandedCard(isExpanded ? null : r.k)}
-                >
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between">
-                      <div className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <span>{r.label}</span>
-                        <span className="text-[10px] text-muted-foreground font-normal">
-                          (Click to {isExpanded ? "collapse" : "expand details"})
-                        </span>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className="font-medium"
-                        style={{ color: c, borderColor: c }}
-                      >
-                        {levelFor(r.v)}
-                      </Badge>
-                    </div>
-                    <div className="mt-3 flex items-baseline gap-1.5">
-                      <span className="font-display text-4xl font-bold" style={{ color: c }}>
-                        {r.v}
-                      </span>
-                      <span className="text-xs text-muted-foreground">/ 100</span>
-                    </div>
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${r.v}%`, background: c }}
-                      />
-                    </div>
-
-                    <div className="mt-4 border-t border-border pt-4">
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-teal">
-                        Why this assessment?
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground">
-                        {r.factors.map((f) => (
-                          <span
-                            key={f}
-                            className="inline-flex items-center gap-0.5 bg-surface-muted/80 border border-border px-1.5 py-0.5 rounded"
+              <div className="grid gap-4 sm:grid-cols-3">
+                {[
+                  {
+                    k: "diabetes",
+                    label: "Diabetes (Type 2)",
+                    v: result.risk.diabetes,
+                    why: result.rationale.diabetes,
+                    tips: "Monitor daily sugar and glycemic index, adhere to the regional vegetable/fiber diet, perform 30+ minutes of aerobic training, and schedule quarterly fasting blood tests.",
+                    factors: ["BMI", "Family History", "Physical Activity", "Age", "Lifestyle Habits"],
+                  },
+                  {
+                    k: "heart",
+                    label: "Heart Disease",
+                    v: result.risk.heartDisease,
+                    why: result.rationale.heartDisease,
+                    tips: "Minimize sodium and trans-fat intake, integrate heart-rate-raising cardio exercises, track blood pressure, and review lipid markers annually.",
+                    factors: ["Exercise Frequency", "Smoking Status", "Age", "Weight Profile"],
+                  },
+                  {
+                    k: "htn",
+                    label: "Hypertension",
+                    v: result.risk.hypertension,
+                    why: result.rationale.hypertension,
+                    tips: "Reduce sodium load to <1,500mg, log blood pressure weekly, implement structured recovery breathing, and quit/avoid nicotine completely.",
+                    factors: ["Weight", "Activity Level", "Family History", "Age"],
+                  },
+                ].map((r) => {
+                  const c = colorFor(r.v);
+                  const isExpanded = expandedCard === r.k;
+                  return (
+                    <Card
+                      key={r.k}
+                      className={`border border-border bg-surface shadow-card-soft transition-all duration-300 cursor-pointer hover:border-teal/30 hover:bg-accent/5 ${
+                        isExpanded ? "ring-1 ring-primary/20 sm:col-span-3" : ""
+                      }`}
+                      onClick={() => setExpandedCard(isExpanded ? null : r.k)}
+                    >
+                      <CardContent className="p-5">
+                        <div className="flex items-start justify-between">
+                          <div className="text-sm font-semibold text-foreground flex items-center gap-1">
+                            <span>{r.label}</span>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="font-medium text-xs"
+                            style={{ color: c, borderColor: c }}
                           >
-                            ✓ {f}
+                            {levelFor(r.v)}
+                          </Badge>
+                        </div>
+                        <div className="mt-3 flex items-baseline gap-1.5">
+                          <span className="font-display text-3xl font-bold" style={{ color: c }}>
+                            {r.v}
                           </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {isExpanded ? (
-                      <div className="mt-5 border-t border-border pt-4 space-y-3">
-                        <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-wider text-teal">
-                            AI Clinical Rationale
-                          </div>
-                          <p className="mt-1 text-xs leading-relaxed text-foreground">{r.why}</p>
+                          <span className="text-xs text-muted-foreground">/ 100</span>
                         </div>
-                        <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-wider text-teal">
-                            Modifiable Lifestyle Adjustments
-                          </div>
-                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                            {r.tips}
-                          </p>
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${r.v}%`, background: c }}
+                          />
                         </div>
-                      </div>
-                    ) : (
-                      <p className="mt-4 text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                        {r.why}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </TabsContent>
 
-        {/* 3. DIET PLAN SUB-TAB */}
-        <TabsContent value="diet" className="space-y-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <Badge variant="secondary" className="rounded-full">
-                AI diet planner
-              </Badge>
-              <h2 className="mt-3 font-display text-2xl font-bold tracking-tight">
-                Kitchen-Adapted Diet Plan
-              </h2>
-              <p className="mt-2 text-muted-foreground">
-                Regionally-adapted meals built around your BMI ({result.bmi.toFixed(1)}) and risk
-                profile.
-              </p>
-            </div>
-            <div className="flex rounded-lg border border-border bg-surface p-1">
-              {[
-                { v: "indian-veg" as const, label: "Vegetarian" },
-                { v: "indian-nonveg" as const, label: "Non-vegetarian" },
-              ].map((o) => (
-                <button
-                  key={o.v}
-                  onClick={() => setDietPref(o.v)}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
-                    dietPref === o.v
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
+                        {isExpanded && (
+                          <div className="mt-4 border-t border-border pt-4 space-y-3">
+                            <div>
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-teal font-mono">
+                                AI Clinical Rationale
+                              </div>
+                              <p className="mt-1 text-xs leading-relaxed text-foreground">{r.why}</p>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-teal font-mono">
+                                Modifiable Lifestyle Adjustments
+                              </div>
+                              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                {r.tips}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          <div className="rounded-xl border border-border/50 bg-surface-muted/20 p-4">
-            <h2 className="text-sm font-bold text-foreground">About Your Personalized Diet Plan</h2>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              This meal plan provides regionally-adapted, kitchen-friendly recommendations tailored
-              to your risk profile and dietary preferences. It helps you manage weight, blood
-              pressure, and blood sugar using simple, everyday ingredients. Adjust your choices
-              below to see vegetarian or non-vegetarian alternatives.
-            </p>
-          </div>
+          {/* Kitchen-Adapted Diet Plan */}
+          <div className="space-y-4 border-t border-border/40 pt-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <Badge variant="secondary" className="rounded-full">
+                  AI diet planner
+                </Badge>
+                <h3 className="mt-2 font-display text-2xl font-bold tracking-tight">
+                  Kitchen-Adapted Diet Plan
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Regionally-adapted meals built around your BMI ({result.bmi.toFixed(1)}) and risk profile.
+                </p>
+              </div>
+              <div className="flex rounded-lg border border-border bg-surface p-1">
+                {[
+                  { v: "indian-veg" as const, label: "Vegetarian" },
+                  { v: "indian-nonveg" as const, label: "Non-vegetarian" },
+                ].map((o) => (
+                  <button
+                    key={o.v}
+                    onClick={() => setDietPref(o.v)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
+                      dietPref === o.v
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <Tabs defaultValue="breakfast" className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-4 bg-muted p-1">
+            <Tabs defaultValue="breakfast" className="w-full">
+              <TabsList className="grid w-full max-w-md grid-cols-4 bg-muted p-1">
+                {(Object.keys(meals) as Array<keyof typeof meals>).map((k) => {
+                  const M = meals[k];
+                  return (
+                    <TabsTrigger key={k} value={k} className="gap-2 cursor-pointer">
+                      <M.icon className="h-4 w-4" />
+                      <span className="hidden sm:inline">{M.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
               {(Object.keys(meals) as Array<keyof typeof meals>).map((k) => {
                 const M = meals[k];
+                const list = dietSamples[dietPref][k];
                 return (
-                  <TabsTrigger key={k} value={k} className="gap-2 cursor-pointer">
-                    <M.icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{M.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-            {(Object.keys(meals) as Array<keyof typeof meals>).map((k) => {
-              const M = meals[k];
-              const list = dietSamples[dietPref][k];
-              return (
-                <TabsContent key={k} value={k} className="mt-4">
-                  <Card className="border-border bg-surface shadow-card-soft">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2 font-display text-base">
-                          <M.icon className="h-4 w-4 text-teal" /> {M.label}
-                        </CardTitle>
-                        <span className="text-xs text-muted-foreground">~{M.kcal} kcal</span>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {list.map((dish, i) => (
-                        <div
-                          key={i}
-                          className="rounded-lg border border-border bg-surface-muted/60 p-4"
-                        >
-                          <div className="text-[10px] font-semibold uppercase tracking-wider text-teal">
-                            {week[i]}
-                          </div>
-                          <div className="mt-1.5 text-sm font-medium leading-snug">{dish}</div>
+                  <TabsContent key={k} value={k} className="mt-4">
+                    <Card className="border-border bg-surface shadow-card-soft">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2 font-display text-base">
+                            <M.icon className="h-4 w-4 text-teal" /> {M.label}
+                          </CardTitle>
+                          <span className="text-xs text-muted-foreground">~{M.kcal} kcal</span>
                         </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              );
-            })}
-          </Tabs>
-
-          <Card className="border-border shadow-card-soft">
-            <CardHeader>
-              <CardTitle className="font-display text-base">Your Meal Schedule</CardTitle>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <th className="py-2 pr-4">Day</th>
-                    <th className="py-2 pr-4">Breakfast</th>
-                    <th className="py-2 pr-4">Lunch</th>
-                    <th className="py-2 pr-4">Snack</th>
-                    <th className="py-2">Dinner</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {week.map((d, i) => (
-                    <tr key={d} className="border-b border-border/70 last:border-0">
-                      <td className="py-3 pr-4 font-display text-sm font-semibold">{d}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">
-                        {dietSamples[dietPref].breakfast[i]}
-                      </td>
-                      <td className="py-3 pr-4 text-muted-foreground">
-                        {dietSamples[dietPref].lunch[i]}
-                      </td>
-                      <td className="py-3 pr-4 text-muted-foreground">
-                        {dietSamples[dietPref].snacks[i]}
-                      </td>
-                      <td className="py-3 text-muted-foreground">
-                        {dietSamples[dietPref].dinner[i]}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border shadow-card-soft">
-            <CardHeader>
-              <CardTitle className="font-display text-base">Nutrition Advice</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm max-w-none prose-headings:font-display prose-headings:tracking-tight">
-                <ReactMarkdown>{result.dietPlan}</ReactMarkdown>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 4. EXERCISE PLAN SUB-TAB */}
-        <TabsContent value="fitness" className="space-y-6">
-          <div>
-            <Badge variant="secondary" className="rounded-full">
-              Exercise Plan
-            </Badge>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight">
-              Your Weekly Workout Plan
-            </h2>
-            <p className="mt-2 text-muted-foreground">
-              Calibrated training plans based on your exercise baseline profile:{" "}
-              <span className="font-semibold capitalize text-foreground">{recFitness}</span>.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-border/50 bg-surface-muted/20 p-4">
-            <h2 className="text-sm font-bold text-foreground">About Your Fitness Plan</h2>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              This physical activity guide is designed to improve insulin sensitivity, lower blood
-              pressure, and support cardiovascular health. Choose your current experience level
-              (Beginner, Intermediate, or Advanced) below to view a structured 7-day routine suited
-              for your lifestyle.
-            </p>
-          </div>
-
-          <Tabs defaultValue={recFitness} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-3 bg-muted p-1">
-              <TabsTrigger value="beginner" className="cursor-pointer">
-                Beginner
-              </TabsTrigger>
-              <TabsTrigger value="intermediate" className="cursor-pointer">
-                Intermediate
-              </TabsTrigger>
-              <TabsTrigger value="advanced" className="cursor-pointer">
-                Advanced
-              </TabsTrigger>
-            </TabsList>
-
-            {(Object.keys(fitnessPlans) as FitnessLevel[]).map((level) => {
-              const p = fitnessPlans[level];
-              return (
-                <TabsContent key={level} value={level} className="mt-4 space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <MetricCard icon={Timer} label="Weekly volume" value={p.weekly} />
-                    <MetricCard icon={Flame} label="Estimated burn" value={`${p.kcal} kcal / wk`} />
-                    <MetricCard icon={Dumbbell} label="Intensity" value={p.intensity} />
-                  </div>
-
-                  <Card className="border-border shadow-card-soft">
-                    <CardHeader>
-                      <CardTitle className="font-display text-base">
-                        Your Daily Activity Guide — {p.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
-                        {p.sessions.map((s) => (
+                      </CardHeader>
+                      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+                        {list.map((dish, i) => (
                           <div
-                            key={s.day}
-                            className="rounded-lg border border-border bg-surface p-4"
+                            key={i}
+                            className="rounded-lg border border-border bg-surface-muted/60 p-4"
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="text-[10px] font-semibold uppercase tracking-wider text-teal">
-                                {s.day}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground">{s.min} min</div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-teal font-mono">
+                              {week[i]}
                             </div>
-                            <div className="mt-2 font-display text-sm font-semibold">{s.focus}</div>
-                            <div className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                              {s.detail}
-                            </div>
+                            <div className="mt-1.5 text-sm font-medium leading-snug">{dish}</div>
                           </div>
                         ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              );
-            })}
-          </Tabs>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
 
-          <Card className="border-border shadow-card-soft">
-            <CardHeader>
-              <CardTitle className="font-display text-base">Fitness Advice</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm max-w-none prose-headings:font-display prose-headings:tracking-tight">
-                <ReactMarkdown>{result.exercisePlan}</ReactMarkdown>
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="border-border shadow-card-soft">
+              <CardHeader>
+                <CardTitle className="font-display text-base">Nutrition Advice</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-sm max-w-none prose-headings:font-display prose-headings:tracking-tight">
+                  <ReactMarkdown>{result.dietPlan}</ReactMarkdown>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Fitness Plan */}
+          <div className="space-y-4 border-t border-border/40 pt-6">
+            <div>
+              <Badge variant="secondary" className="rounded-full">
+                Exercise Plan
+              </Badge>
+              <h3 className="mt-2 font-display text-2xl font-bold tracking-tight">
+                Your Weekly Workout Plan
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Calibrated training plans based on your exercise baseline profile:{" "}
+                <span className="font-semibold capitalize text-foreground">{recFitness}</span>.
+              </p>
+            </div>
+
+            <Tabs defaultValue={recFitness} className="w-full">
+              <TabsList className="grid w-full max-w-md grid-cols-3 bg-muted p-1">
+                <TabsTrigger value="beginner" className="cursor-pointer">
+                  Beginner
+                </TabsTrigger>
+                <TabsTrigger value="intermediate" className="cursor-pointer">
+                  Intermediate
+                </TabsTrigger>
+                <TabsTrigger value="advanced" className="cursor-pointer">
+                  Advanced
+                </TabsTrigger>
+              </TabsList>
+
+              {(Object.keys(fitnessPlans) as FitnessLevel[]).map((level) => {
+                const p = fitnessPlans[level];
+                return (
+                  <TabsContent key={level} value={level} className="mt-4 space-y-4">
+                    <div className="grid gap-3 grid-cols-3">
+                      <MetricCard icon={Timer} label="Weekly volume" value={p.weekly} />
+                      <MetricCard icon={Flame} label="Estimated burn" value={`${p.kcal} kcal / wk`} />
+                      <MetricCard icon={Dumbbell} label="Intensity" value={p.intensity} />
+                    </div>
+
+                    <Card className="border-border shadow-card-soft">
+                      <CardHeader>
+                        <CardTitle className="font-display text-base">
+                          Your Daily Activity Guide — {p.title}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+                          {p.sessions.map((s) => (
+                            <div
+                              key={s.day}
+                              className="rounded-lg border border-border bg-surface p-4"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="text-[10px] font-semibold uppercase tracking-wider text-teal font-mono">
+                                  {s.day}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">{s.min} min</div>
+                              </div>
+                              <div className="mt-2 font-display text-sm font-semibold">{s.focus}</div>
+                              <div className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                                {s.detail}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
+
+            <Card className="border-border shadow-card-soft">
+              <CardHeader>
+                <CardTitle className="font-display text-base">Fitness Advice</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-sm max-w-none prose-headings:font-display prose-headings:tracking-tight">
+                  <ReactMarkdown>{result.exercisePlan}</ReactMarkdown>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
-        {/* 5. PROGRESS TRACKING SUB-TAB */}
+        {/* 3. PROGRESS TRACKING SUB-TAB */}
         <TabsContent value="progress" className="space-y-6">
           <div>
             <Badge variant="secondary" className="rounded-full">
@@ -2032,223 +2299,6 @@ function Dashboard() {
                   <div className={`mt-2 font-display text-2xl font-bold ${s.c}`}>{s.v}</div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 6. HEALTH REPORTS SUB-TAB */}
-        <TabsContent value="reports" className="space-y-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <Badge variant="secondary" className="rounded-full">
-                Clinical report
-              </Badge>
-              <h2 className="mt-3 font-display text-2xl font-bold tracking-tight">
-                Your Printable Report
-              </h2>
-              <p className="mt-2 text-muted-foreground">
-                Review your comprehensive health profile and export it as a clinician-ready PDF.
-              </p>
-            </div>
-            <Button
-              onClick={download}
-              className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <Download className="h-4 w-4" /> Download PDF
-            </Button>
-          </div>
-
-          <div className="rounded-xl border border-border/50 bg-surface-muted/20 p-4">
-            <h2 className="text-sm font-bold text-foreground">Download Your Health Reports</h2>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Access and print your complete wellness profile, including dietary adjustments,
-              physical activity plans, and risk metrics. You can save this summary as a PDF to share
-              with your primary care provider during your next physical checkup.
-            </p>
-          </div>
-
-          {/* Report preview */}
-          <Card className="overflow-hidden border-border bg-surface shadow-elevated">
-            <div className="flex items-center justify-between bg-primary px-8 py-6 text-primary-foreground">
-              <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-md bg-primary-foreground/10">
-                  <HeartPulse className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="font-display text-lg font-bold">HealthGuard Printable Report</div>
-                  <div className="text-xs text-primary-foreground/70">
-                    AI-assisted preventive health assessment
-                  </div>
-                </div>
-              </div>
-              <div className="text-right text-xs text-primary-foreground/70">
-                {new Date().toLocaleString()}
-              </div>
-            </div>
-
-            <CardContent className="space-y-8 p-8">
-              <section>
-                <div className="mb-3 border-b border-border pb-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
-                  Your Profile Parameters
-                </div>
-                <LedgerTable
-                  items={[
-                    {
-                      parameter: "Age",
-                      value: `${profile.age} yrs`,
-                      reference: "Adult baseline",
-                      status: "Demographic",
-                    },
-                    {
-                      parameter: "Gender",
-                      value: profile.gender,
-                      reference: "Metabolic standard",
-                      status: "Recorded",
-                    },
-                    {
-                      parameter: "Height",
-                      value: `${profile.heightCm} cm`,
-                      reference: "Demographic standard",
-                      status: "Recorded",
-                    },
-                    {
-                      parameter: "Weight",
-                      value: `${profile.weightKg} kg`,
-                      reference: "Subject baseline",
-                      status: "Recorded",
-                    },
-                    {
-                      parameter: "Body Mass Index (BMI)",
-                      value: `${result.bmi}`,
-                      reference: "18.5 – 24.9 optimal",
-                      status: result.bmi >= 18.5 && result.bmi < 25 ? "Optimal" : "Review",
-                      statusColor:
-                        result.bmi >= 18.5 && result.bmi < 25
-                          ? "bg-success/10 text-success"
-                          : "bg-warning/10 text-warning",
-                    },
-                    {
-                      parameter: "Smoking history",
-                      value: profile.smoking,
-                      reference: "Non-smoker standard",
-                      status: profile.smoking === "never" ? "Optimal" : "Review",
-                      statusColor:
-                        profile.smoking === "never"
-                          ? "bg-success/10 text-success"
-                          : "bg-warning/10 text-warning",
-                    },
-                    {
-                      parameter: "Exercise baseline",
-                      value: profile.exercise,
-                      reference: "3-4x/week active target",
-                      status: profile.exercise === "none" ? "Sedentary" : "Active",
-                      statusColor:
-                        profile.exercise === "none"
-                          ? "bg-warning/10 text-warning"
-                          : "bg-success/10 text-success",
-                    },
-                    {
-                      parameter: "Hereditary risk markers",
-                      value: profile.familyHistory ? "Reported" : "None",
-                      reference: "Family history profile",
-                      status: profile.familyHistory ? "Review" : "Optimal",
-                      statusColor: profile.familyHistory
-                        ? "bg-warning/10 text-warning"
-                        : "bg-success/10 text-success",
-                    },
-                    {
-                      parameter: "Active symptom tracking",
-                      value: profile.symptoms ? "Reported" : "None",
-                      reference: "Self-reported concerns",
-                      status: profile.symptoms ? "Review" : "Optimal",
-                      statusColor: profile.symptoms
-                        ? "bg-warning/10 text-warning"
-                        : "bg-success/10 text-success",
-                    },
-                  ]}
-                />
-              </section>
-
-              <section>
-                <div className="mb-3 border-b border-border pb-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
-                  Overall risk score
-                </div>
-                <div className="flex items-baseline gap-3">
-                  <span className="font-display text-5xl font-bold text-primary">
-                    {result.overallScore}
-                    <span className="text-xl text-muted-foreground">/80</span>
-                  </span>
-                  <span
-                    className="text-sm font-semibold text-muted-foreground"
-                    style={{ color: overallColor }}
-                  >
-                    {result.overallRisk} risk
-                  </span>
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-3 border-b border-border pb-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
-                  Per-condition risk breakdown
-                </div>
-                <RiskLedgerTable
-                  items={[
-                    {
-                      condition: "Diabetes (Type 2)",
-                      score: result.risk.diabetes,
-                      classification: levelFor(result.risk.diabetes),
-                      color: colorFor(result.risk.diabetes),
-                      rationale: result.rationale.diabetes,
-                    },
-                    {
-                      condition: "Heart Disease",
-                      score: result.risk.heartDisease,
-                      classification: levelFor(result.risk.heartDisease),
-                      color: colorFor(result.risk.heartDisease),
-                      rationale: result.rationale.heartDisease,
-                    },
-                    {
-                      condition: "Hypertension",
-                      score: result.risk.hypertension,
-                      classification: levelFor(result.risk.hypertension),
-                      color: colorFor(result.risk.hypertension),
-                      rationale: result.rationale.hypertension,
-                    },
-                  ]}
-                />
-              </section>
-
-              <section>
-                <div className="mb-3 border-b border-border pb-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
-                  Recommendations
-                </div>
-                <div className="mt-3 first:mt-0">
-                  <div className="font-display text-sm font-semibold text-foreground">Diet</div>
-                  <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                    {result.dietPlan.replace(/[#*`>]/g, "").trim()}
-                  </p>
-                </div>
-                <div className="mt-3 first:mt-0">
-                  <div className="font-display text-sm font-semibold text-foreground">Exercise</div>
-                  <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                    {result.exercisePlan.replace(/[#*`>]/g, "").trim()}
-                  </p>
-                </div>
-                <div className="mt-3 first:mt-0">
-                  <div className="font-display text-sm font-semibold text-foreground">
-                    Prevention
-                  </div>
-                  <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                    {result.preventionTips.replace(/[#*`>]/g, "").trim()}
-                  </p>
-                </div>
-              </section>
-
-              <p className="border-t border-border pt-4 text-xs text-muted-foreground">
-                HealthGuard AI provides educational risk insights based on user-provided
-                information. It is not a diagnostic tool and should not replace consultation with
-                qualified healthcare professionals.
-              </p>
             </CardContent>
           </Card>
         </TabsContent>
