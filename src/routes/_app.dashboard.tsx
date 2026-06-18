@@ -62,7 +62,7 @@ function Dashboard() {
   const [result, setResult] = useHealthResult();
   const [profile, setProfile] = useProfile();
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const API_URL = import.meta.env.VITE_API_URL || `${import.meta.env.VITE_API_URL}`;
 
   // Action Impact Engine State
   interface ActionImpact {
