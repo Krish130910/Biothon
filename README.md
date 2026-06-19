@@ -18,8 +18,8 @@ HealthGuard AI is a modern, patient-first web application designed to help indiv
 ### 📊 2. Intelligent Risk Dashboard
 
 - **Clinical Risk Math**: Computes scores using **FINDRISC** (Type 2 Diabetes) and **Framingham** (Heart Disease & Hypertension) equations for clinical transparency.
-- **Action Impact Engine**: Tests multiple realistic lifestyle changes, recalculates risk for each, and ranks them by impact. The dashboard says *"Exercise 30 min/day can reduce your risk by 19%"* — not just a number.
-- **Risk Driver Analysis**: Breaks down risk into weighted contributors (e.g. Sedentary Lifestyle 38%, BMI 27%) so users understand *why* their risk is high.
+- **Action Impact Engine**: Tests multiple realistic lifestyle changes, recalculates risk for each, and ranks them by impact. The dashboard says _"Exercise 30 min/day can reduce your risk by 19%"_ — not just a number.
+- **Risk Driver Analysis**: Breaks down risk into weighted contributors (e.g. Sedentary Lifestyle 38%, BMI 27%) so users understand _why_ their risk is high.
 - **Dynamic Journey Card**: Shows assessment completion status, recommended next step, and profile age.
 
 ### 🍱 3. Personalized Action Plan
@@ -55,23 +55,23 @@ HealthGuard AI is a modern, patient-first web application designed to help indiv
 
 ### Frontend
 
-| Layer | Technology |
-|---|---|
-| Framework | Vite + React 19 + TypeScript |
-| Routing | TanStack Router (file-based) |
-| Styling | Tailwind CSS v4 + Radix UI primitives |
-| Charts | Recharts |
-| Reports | jsPDF |
+| Layer     | Technology                             |
+| --------- | -------------------------------------- |
+| Framework | Vite + React 19 + TypeScript           |
+| Routing   | TanStack Router (file-based)           |
+| Styling   | Tailwind CSS v4 + Radix UI primitives  |
+| Charts    | Recharts                               |
+| Reports   | jsPDF                                  |
 | Auth / DB | Firebase client SDK (Auth + Firestore) |
 
 ### Backend (`/backend`)
 
-| Layer | Technology |
-|---|---|
-| Server | Express.js + TypeScript (`tsx watch`) |
-| Auth | Firebase Admin SDK (+ mock fallback) |
-| AI | Gemini API `gemini-2.5-flash` |
-| Validation | Zod |
+| Layer      | Technology                            |
+| ---------- | ------------------------------------- |
+| Server     | Express.js + TypeScript (`tsx watch`) |
+| Auth       | Firebase Admin SDK (+ mock fallback)  |
+| AI         | Gemini API `gemini-2.5-flash`         |
+| Validation | Zod                                   |
 
 ---
 
@@ -142,6 +142,7 @@ cd backend && npm install
 ### 2. Configure Environment Variables
 
 **Root `.env`** (frontend):
+
 ```env
 VITE_FIREBASE_API_KEY="your-firebase-api-key"
 VITE_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
@@ -153,6 +154,7 @@ VITE_API_URL="http://localhost:5000"
 ```
 
 **`backend/.env`**:
+
 ```env
 GEMINI_API_KEY="your-gemini-api-key"
 # Optional: uncomment and set if you have a Firebase service account
@@ -164,11 +166,13 @@ GEMINI_API_KEY="your-gemini-api-key"
 ### 3. Start Development Servers
 
 **Both servers at once** (recommended):
+
 ```bash
 npm run dev:all
 ```
 
 **Or separately**:
+
 ```bash
 # Terminal 1 — Frontend (http://localhost:5173)
 npm run dev
@@ -198,16 +202,16 @@ cd backend && npm run build
 
 ## 🗺️ Development Phases
 
-| Phase | Description | Status |
-|---|---|---|
-| **Phase 1** | Vite + React 19 + TanStack Router + Tailwind v4 foundation | ✅ Complete |
-| **Phase 2** | Multimodal Food Scanner (Gemini Vision OCR + webcam) | ✅ Complete |
-| **Phase 3** | Clinical Calibration (FINDRISC + Framingham equations) | ✅ Complete |
-| **Phase 4** | Safety Guardrails (AI claim + prescription validation) | ✅ Complete |
-| **Phase 5** | Backend Foundation + Firestore Migration | ✅ Complete |
-| **Phase 6** | Action Impact Engine (ranked lifestyle interventions) | ✅ Complete |
-| **Phase 7** | Risk Driver Analysis (explainable factor contributions) | ✅ Complete |
-| **Phase 8** | Food Intelligence (personalized food–risk connection) | ✅ Complete |
-| **Phase 9** | UX Cleanup (dashboard focus + sidebar simplification) | ✅ Complete |
-| **Phase 10** | Expert Review (human clinical review + real-time chat) | ✅ Complete |
-| **Phase 11** | Guided Onboarding (one-time assessment + smart redirects) | ✅ Complete |
+| Phase        | Description                                                | Status      |
+| ------------ | ---------------------------------------------------------- | ----------- |
+| **Phase 1**  | Vite + React 19 + TanStack Router + Tailwind v4 foundation | ✅ Complete |
+| **Phase 2**  | Multimodal Food Scanner (Gemini Vision OCR + webcam)       | ✅ Complete |
+| **Phase 3**  | Clinical Calibration (FINDRISC + Framingham equations)     | ✅ Complete |
+| **Phase 4**  | Safety Guardrails (AI claim + prescription validation)     | ✅ Complete |
+| **Phase 5**  | Backend Foundation + Firestore Migration                   | ✅ Complete |
+| **Phase 6**  | Action Impact Engine (ranked lifestyle interventions)      | ✅ Complete |
+| **Phase 7**  | Risk Driver Analysis (explainable factor contributions)    | ✅ Complete |
+| **Phase 8**  | Food Intelligence (personalized food–risk connection)      | ✅ Complete |
+| **Phase 9**  | UX Cleanup (dashboard focus + sidebar simplification)      | ✅ Complete |
+| **Phase 10** | Expert Review (human clinical review + real-time chat)     | ✅ Complete |
+| **Phase 11** | Guided Onboarding (one-time assessment + smart redirects)  | ✅ Complete |

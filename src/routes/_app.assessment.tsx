@@ -38,6 +38,7 @@ import {
   useLangPref,
   type Profile,
 } from "@/lib/health-store";
+import { tr } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_app/assessment")({
   component: AssessmentPage,
@@ -110,7 +111,7 @@ function AssessmentPage() {
               assessmentCompletedAt: serverTimestamp(),
               lastAssessmentUpdatedAt: serverTimestamp(),
             },
-            { merge: true }
+            { merge: true },
           );
         } catch (dbErr) {
           console.warn("Failed to write onboarding status to Firestore:", dbErr);
@@ -160,7 +161,7 @@ function AssessmentPage() {
           Health assessment
         </Badge>
         <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-          Tell us about your health.
+          {tr("assessmentTitle", lang)}
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
           This takes about 10 minutes. Your answers stay on your device and power your risk model
@@ -228,7 +229,7 @@ function AssessmentPage() {
             {step === 1 && (
               <div className="grid gap-6 sm:grid-cols-2">
                 <Field
-                  label="Age"
+                  label={tr("age", lang)}
                   helperText="Required for demographic scaling."
                   error={form.formState.errors.age?.message}
                 >
@@ -256,7 +257,7 @@ function AssessmentPage() {
                 </Field>
 
                 <Field
-                  label="Gender"
+                  label={tr("gender", lang)}
                   helperText="Used for metabolic baseline modeling."
                   error={form.formState.errors.gender?.message}
                 >
@@ -280,7 +281,7 @@ function AssessmentPage() {
                 </Field>
 
                 <Field
-                  label="Height (cm)"
+                  label={tr("height", lang)}
                   tooltip="Height is used along with weight to calculate your Body Mass Index (BMI), a key indicator for cardiovascular and diabetes risk."
                   helperText="Combined with weight to establish your BMI."
                   error={form.formState.errors.heightCm?.message}
@@ -309,7 +310,7 @@ function AssessmentPage() {
                 </Field>
 
                 <Field
-                  label="Weight (kg)"
+                  label={tr("weight", lang)}
                   tooltip="Weight changes directly impact your calculated BMI and metabolic load. Tracking baseline weight is essential for monitoring progress."
                   helperText="Baseline weight for monitoring."
                   error={form.formState.errors.weightKg?.message}
@@ -342,7 +343,7 @@ function AssessmentPage() {
             {step === 2 && (
               <div className="grid gap-6 sm:grid-cols-2">
                 <Field
-                  label="Smoking status"
+                  label={tr("smoking", lang)}
                   helperText="Vascular and systemic health risk factor."
                   error={form.formState.errors.smoking?.message}
                 >
@@ -362,7 +363,7 @@ function AssessmentPage() {
                 </Field>
 
                 <Field
-                  label="Exercise frequency"
+                  label={tr("exercise", lang)}
                   helperText="Refined parameter for cardiovascular fitness."
                   error={form.formState.errors.exercise?.message}
                 >
@@ -386,7 +387,7 @@ function AssessmentPage() {
 
             {step === 3 && (
               <Field
-                label="Family history of chronic disease"
+                label={tr("familyHistory", lang)}
                 tooltip="First-degree relatives share genetic factors that significantly influence your susceptibility to inherited conditions."
                 helperText="List any first-degree relatives (parents, siblings) with Type 2 Diabetes, Cardiovascular Disease, or Hypertension."
                 error={form.formState.errors.familyHistory?.message}
@@ -403,9 +404,9 @@ function AssessmentPage() {
             {step === 4 && (
               <div className="space-y-6">
                 <Field
-                  label="Current symptoms or concerns"
-                  tooltip="Active symptoms provide direct clinical context on current physiological changes that may indicate glycemic or cardiovascular variance."
-                  helperText="Describe anything you've been noticing for more than two weeks. If you have no symptoms, you can leave this blank."
+                  label={tr("symptoms", lang)}
+                  tooltip={tr("symptomsTooltip", lang)}
+                  helperText={tr("symptomsHelper", lang)}
                   error={form.formState.errors.symptoms?.message}
                 >
                   <Textarea

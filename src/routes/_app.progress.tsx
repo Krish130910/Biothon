@@ -135,9 +135,9 @@ function ProgressPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${idToken}`
+          Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ weightKg: w })
+        body: JSON.stringify({ weightKg: w }),
       });
 
       if (response.ok) {
@@ -274,7 +274,9 @@ function ProgressPage() {
             {/* Weight Chart */}
             <Card className="border-border shadow-card-soft bg-surface">
               <CardHeader className="pb-2 border-b border-border/40">
-                <CardTitle className="font-display text-sm font-bold text-foreground">Weight Tracking</CardTitle>
+                <CardTitle className="font-display text-sm font-bold text-foreground">
+                  Weight Tracking
+                </CardTitle>
               </CardHeader>
               <CardContent className="h-[260px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
@@ -305,7 +307,9 @@ function ProgressPage() {
             {/* Risk Score Chart */}
             <Card className="border-border shadow-card-soft bg-surface">
               <CardHeader className="pb-2 border-b border-border/40">
-                <CardTitle className="font-display text-sm font-bold text-foreground">Risk Score Over Time</CardTitle>
+                <CardTitle className="font-display text-sm font-bold text-foreground">
+                  Risk Score Over Time
+                </CardTitle>
               </CardHeader>
               <CardContent className="h-[260px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">

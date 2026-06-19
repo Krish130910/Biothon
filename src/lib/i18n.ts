@@ -101,8 +101,109 @@ export const t: Dict = {
     hi: "थकान, सिरदर्द…",
     gu: "થાક, માથાનો દુખાવો…",
   },
+  symptomsTooltip: {
+    en: "Active symptoms provide direct clinical context on current physiological changes that may indicate glycemic or cardiovascular variance.",
+    hi: "सक्रिय लक्षण वर्तमान शारीरिक परिवर्तनों पर प्रत्यक्ष नैदानिक ​​संदर्भ प्रदान करते हैं जो रक्त शर्करा या हृदय संबंधी भिन्नता का संकेत दे सकते हैं।",
+    gu: "સક્રિય લક્ષણો વર્તમાન શારીરિક ફેરફારો પર પ્રત્યક્ષ ક્લિનિકલ સંદર્ભ પ્રદાન કરે છે જે રક્ત ખાંડ અથવા હૃદય સંબંધિત ભિન્નતા સૂચવી શકે છે.",
+  },
+  symptomsHelper: {
+    en: "Describe anything you've been noticing for more than two weeks. If you have no symptoms, you can leave this blank.",
+    hi: "ऐसी किसी भी चीज़ का वर्णन करें जिसे आप दो सप्ताह से अधिक समय से देख रहे हैं। यदि आपके पास कोई लक्षण नहीं हैं, तो आप इसे खाली छोड़ सकते हैं।",
+    gu: "તમે બે અઠવાડિયાથી વધુ સમયથી જે કંઈપણ નોંધી રહ્યા છો તેનું વર્ણન કરો. જો તમને કોઈ લક્ષણો ન હોય, તો તમે તેને ખાલી છોડી શકો છો.",
+  },
+  // Sidebar keys
+  dashboard: { en: "Dashboard", hi: "डैशबोर्ड", gu: "ડેશબોર્ડ" },
+  foodScanner: { en: "Food Scanner", hi: "खाद्य स्कैनर", gu: "ફૂડ સ્કેનર" },
+  actionPlan: { en: "Action Plan", hi: "कार्य योजना", gu: "એક્શન પ્લાન" },
+  progress: { en: "Progress", hi: "प्रगति", gu: "પ્રગતિ" },
+  expertReview: { en: "Expert Review", hi: "विशेषज्ञ समीक्षा", gu: "નિષ્ણાત સમીક્ષા" },
+  profile: { en: "Profile", hi: "प्रोफ़ाइल", gu: "પ્રોફાઇલ" },
+  about: { en: "About", hi: "के बारे में", gu: "વિશે" },
+  support: { en: "Support", hi: "सहायता", gu: "સપોર્ટ" },
+  healthPlatform: { en: "Health Platform", hi: "स्वास्थ्य मंच", gu: "હેલ્થ પ્લેટફોર્મ" },
+  resources: { en: "Resources", hi: "संसाधन", gu: "રિસોર્સિસ" },
+
+  // Dashboard keys
+  riskDashboard: { en: "Risk Dashboard", hi: "जोखिम डैशबोर्ड", gu: "જોખમ ડેશબોર્ડ" },
+  clinicalEngine: {
+    en: "Clinical Risk Engine",
+    hi: "नैदानिक ​​जोखिम इंजन",
+    gu: "ક્લિનિકલ રિસ્ક એન્જિન",
+  },
+  lifestyleImpact: {
+    en: "Lifestyle Impact Factors",
+    hi: "जीवनशैली प्रभाव कारक",
+    gu: "જીવનશૈલી અસર પરિબળો",
+  },
+  actionPrioritiesTitle: {
+    en: "Prevention Action Priorities",
+    hi: "बचाव कार्रवाई प्राथमिकताएं",
+    gu: "નિવારણ એક્શન પ્રાથમિકતાઓ",
+  },
+
+  // Scanner keys
+  ingredientsScanner: {
+    en: "Multimodal Ingredients Scanner",
+    hi: "बहुविध घटक स्कैनर",
+    gu: "મલ્ટીમોડલ ઇન્ગ્રીડિઅન્ટ્સ સ્કેનર",
+  },
+  scanPhoto: {
+    en: "Scan Ingredient Label",
+    hi: "सामग्री लेबल स्कैन करें",
+    gu: "સામગ્રી લેબલ સ્કેન કરો",
+  },
+  textInput: {
+    en: "Paste Ingredient List",
+    hi: "सामग्री सूची पेस्ट करें",
+    gu: "સામગ્રી સૂચિ પેસ્ટ કરો",
+  },
+
+  // Action Plan keys
+  coachingPlan: {
+    en: "Personalized Coaching Plan",
+    hi: "व्यक्तिगत कोचिंग योजना",
+    gu: "વ્યક્તિગત કોચિંગ પ્લાન",
+  },
+  preventionStrategies: {
+    en: "Clinical Prevention Strategies",
+    hi: "नैदानिक ​​बचाव रणनीतियाँ",
+    gu: "ક્લિનિકલ પ્રિવેન્શન વ્યૂહરચનાઓ",
+  },
+
+  // Assessment keys
+  assessmentTitle: {
+    en: "Tell us about your health",
+    hi: "हमें अपने स्वास्थ्य के बारे में बताएं",
+    gu: "અમને તમારા સ્વાસ્થ્ય વિશે કહો",
+  },
 };
+
+import { useState, useEffect } from "react";
 
 export function tr(key: keyof typeof t, lang: Lang): string {
   return t[key]?.[lang] ?? t[key]?.en ?? key;
+}
+
+export function useLanguage(): Lang {
+  const [language, setLanguage] = useState<Lang>(() => {
+    return (localStorage.getItem("hg.lang.v1") as Lang) || "en";
+  });
+
+  useEffect(() => {
+    const sync = () => {
+      setLanguage((localStorage.getItem("hg.lang.v1") as Lang) || "en");
+    };
+
+    window.addEventListener("hg:language-change", sync);
+    window.addEventListener("hg:store", sync);
+    window.addEventListener("storage", sync);
+
+    return () => {
+      window.removeEventListener("hg:language-change", sync);
+      window.removeEventListener("hg:store", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  return language;
 }

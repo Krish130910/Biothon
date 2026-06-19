@@ -31,6 +31,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { useAuth } from "@/contexts/auth-context";
+import { db, isConfigured } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export const Route = createFileRoute("/contact")({
   component: ContactPage,
@@ -40,16 +43,39 @@ function ContactPage() {
   useEffect(() => {
     document.title = "Contact & Portfolio — HealthGuard";
   }, []);
+  const { user } = useAuth();
   const [sending, setSending] = useState(false);
 
-  function submit(e: React.FormEvent<HTMLFormElement>) {
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSending(true);
-    setTimeout(() => {
-      setSending(false);
-      (e.target as HTMLFormElement).reset();
+
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
+    const message = formData.get("message") as string;
+
+    try {
+      if (isConfigured) {
+        await addDoc(collection(db, "feedback"), {
+          userId: user?.uid ?? null,
+          name: name || user?.displayName || "Anonymous",
+          email: email || user?.email || null,
+          message,
+          type: "support",
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        console.warn("Firebase is not configured. Local submission only.");
+      }
       toast.success("Feedback submitted successfully! Thank you.");
-    }, 800);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      console.error("Feedback submit failed:", err);
+      toast.error("Failed to submit feedback. Please try again.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -294,6 +320,7 @@ function ContactPage() {
                       </Label>
                       <Input
                         id="name"
+                        name="name"
                         required
                         placeholder="Priya Sharma"
                         className="border-border/80 bg-surface/50 h-10 text-xs transition-all duration-200 focus:border-teal focus:ring-teal focus-visible:ring-teal"
@@ -305,6 +332,7 @@ function ContactPage() {
                       </Label>
                       <Input
                         id="email"
+                        name="email"
                         required
                         type="email"
                         placeholder="you@email.com"
@@ -317,6 +345,7 @@ function ContactPage() {
                       </Label>
                       <Textarea
                         id="message"
+                        name="message"
                         required
                         rows={4}
                         placeholder="Your thoughts on the project..."

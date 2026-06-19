@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useHealthResult, useProfile } from "@/lib/health-store";
+import { useLanguage, tr } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -226,6 +227,7 @@ function ActionPlanPage() {
   const [profile] = useProfile();
   const [result] = useHealthResult();
   const [dietPref, setDietPref] = useState<"indian-veg" | "indian-nonveg">("indian-veg");
+  const currentLang = useLanguage();
 
   useEffect(() => {
     document.title = "Action Plan — HealthGuard";
@@ -241,7 +243,8 @@ function ActionPlanPage() {
           Assessment Required
         </h1>
         <p className="mt-4 text-sm text-muted-foreground leading-relaxed max-w-md">
-          Please complete your initial health assessment before viewing your personalized Action Plan.
+          Please complete your initial health assessment before viewing your personalized Action
+          Plan.
         </p>
         <Button
           onClick={() => navigate({ to: "/assessment" })}
@@ -270,10 +273,11 @@ function ActionPlanPage() {
           Active Plan
         </Badge>
         <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-          Weekly Action Plan
+          {tr("actionPlan", currentLang)}
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-relaxed">
-          Your personalized list of highest impact habits, custom regional diet guides, and physical exercise workouts for this week.
+          Your personalized list of highest impact habits, custom regional diet guides, and physical
+          exercise workouts for this week.
         </p>
       </div>
 
@@ -289,8 +293,13 @@ function ActionPlanPage() {
           {result.actionPriorities && result.actionPriorities.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-3">
               {result.actionPriorities.slice(0, 3).map((p, i) => (
-                <div key={i} className="flex items-start gap-3.5 rounded-xl border border-border bg-surface-muted/50 p-4">
-                  <span className="font-display text-lg font-black text-teal shrink-0">{i + 1}</span>
+                <div
+                  key={i}
+                  className="flex items-start gap-3.5 rounded-xl border border-border bg-surface-muted/50 p-4"
+                >
+                  <span className="font-display text-lg font-black text-teal shrink-0">
+                    {i + 1}
+                  </span>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-foreground leading-snug">{p.action}</p>
                     <p className="text-[10px] text-teal mt-1 font-semibold uppercase tracking-wider font-mono">
@@ -304,11 +313,15 @@ function ActionPlanPage() {
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="flex items-start gap-3.5 rounded-xl border border-border bg-surface-muted/50 p-4">
                 <span className="font-display text-lg font-black text-teal shrink-0">1</span>
-                <p className="text-sm font-bold text-foreground">Exercise 30 minutes/day (moderate intensity)</p>
+                <p className="text-sm font-bold text-foreground">
+                  Exercise 30 minutes/day (moderate intensity)
+                </p>
               </div>
               <div className="flex items-start gap-3.5 rounded-xl border border-border bg-surface-muted/50 p-4">
                 <span className="font-display text-lg font-black text-teal shrink-0">2</span>
-                <p className="text-sm font-bold text-foreground">Add high-fiber and protein foods to breakfast</p>
+                <p className="text-sm font-bold text-foreground">
+                  Add high-fiber and protein foods to breakfast
+                </p>
               </div>
               <div className="flex items-start gap-3.5 rounded-xl border border-border bg-surface-muted/50 p-4">
                 <span className="font-display text-lg font-black text-teal shrink-0">3</span>
@@ -324,13 +337,14 @@ function ActionPlanPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <Badge variant="secondary" className="rounded-full">
-              Diet Planner
+              {tr("dietPlan", currentLang)}
             </Badge>
             <h3 className="mt-2 font-display text-2xl font-bold tracking-tight">
               Weekly Meal Planner
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Regionally-adapted meals designed to optimize your BMI ({result.bmi.toFixed(1)}) and glycemic/cardiovascular metrics.
+              Regionally-adapted meals designed to optimize your BMI ({result.bmi.toFixed(1)}) and
+              glycemic/cardiovascular metrics.
             </p>
           </div>
           <div className="flex rounded-lg border border-border bg-surface p-1">
@@ -358,7 +372,11 @@ function ActionPlanPage() {
             {(Object.keys(meals) as Array<keyof typeof meals>).map((k) => {
               const M = meals[k];
               return (
-                <TabsTrigger key={k} value={k} className="gap-2 cursor-pointer text-xs font-semibold">
+                <TabsTrigger
+                  key={k}
+                  value={k}
+                  className="gap-2 cursor-pointer text-xs font-semibold"
+                >
                   <M.icon className="h-3.5 w-3.5" />
                   <span>{M.label}</span>
                 </TabsTrigger>
@@ -376,7 +394,9 @@ function ActionPlanPage() {
                       <CardTitle className="flex items-center gap-2 font-display text-sm font-bold text-foreground">
                         <M.icon className="h-4 w-4 text-teal" /> {M.label} Suggestions
                       </CardTitle>
-                      <span className="text-xs text-muted-foreground font-semibold">~{M.kcal} kcal</span>
+                      <span className="text-xs text-muted-foreground font-semibold">
+                        ~{M.kcal} kcal
+                      </span>
                     </div>
                   </CardHeader>
                   <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7 pt-4">
@@ -388,7 +408,9 @@ function ActionPlanPage() {
                         <div className="text-[10px] font-bold uppercase tracking-wider text-teal font-mono">
                           {week[i]}
                         </div>
-                        <div className="mt-1 text-xs font-semibold leading-relaxed text-foreground">{dish}</div>
+                        <div className="mt-1 text-xs font-semibold leading-relaxed text-foreground">
+                          {dish}
+                        </div>
                       </div>
                     ))}
                   </CardContent>
@@ -403,7 +425,7 @@ function ActionPlanPage() {
       <div className="space-y-4 border-t border-border/40 pt-6">
         <div>
           <Badge variant="secondary" className="rounded-full">
-            Workout Planner
+            {tr("exercisePlan", currentLang)}
           </Badge>
           <h3 className="mt-2 font-display text-2xl font-bold tracking-tight">
             Weekly Workout Plan
@@ -454,7 +476,9 @@ function ActionPlanPage() {
                             <div className="text-[10px] font-bold uppercase tracking-wider text-teal font-mono">
                               {s.day}
                             </div>
-                            <div className="text-[10px] font-bold text-muted-foreground">{s.min} min</div>
+                            <div className="text-[10px] font-bold text-muted-foreground">
+                              {s.min} min
+                            </div>
                           </div>
                           <div className="text-xs font-bold text-foreground">{s.focus}</div>
                           <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground font-medium">

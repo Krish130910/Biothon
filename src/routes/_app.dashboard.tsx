@@ -1,22 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import {
-  useHealthResult,
-  useProfile,
-} from "@/lib/health-store";
+import { useHealthResult, useProfile } from "@/lib/health-store";
+import { useLanguage, tr } from "@/lib/i18n";
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  ArrowRight,
-  Brain,
-  Download,
-  TrendingDown,
-  Info,
-  Stethoscope,
-} from "lucide-react";
+import { ArrowRight, Brain, Download, TrendingDown, Info, Stethoscope } from "lucide-react";
 import jsPDF from "jspdf";
 
 export const Route = createFileRoute("/_app/dashboard")({
@@ -55,6 +46,7 @@ function colorFor(score: number) {
 }
 
 function Dashboard() {
+  const currentLang = useLanguage();
   useEffect(() => {
     document.title = "Risk Dashboard — HealthGuard";
   }, []);
@@ -130,7 +122,7 @@ function Dashboard() {
       }
     };
     fetchUserStatus();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
   // Fetch expert review request status
@@ -149,7 +141,11 @@ function Dashboard() {
           const data = await resp.json();
           if (data.success && data.requests.length > 0) {
             const latest = data.requests[0];
-            if (latest.status === "pending" || latest.status === "accepted" || latest.status === "completed") {
+            if (
+              latest.status === "pending" ||
+              latest.status === "accepted" ||
+              latest.status === "completed"
+            ) {
               setExpertReviewStatus(latest.status);
             }
           }
@@ -159,7 +155,7 @@ function Dashboard() {
       }
     };
     fetchReviewStatus();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
   // Fetch action impacts once result is available
@@ -174,7 +170,7 @@ function Dashboard() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${idToken}`,
+            Authorization: `Bearer ${idToken}`,
           },
         });
         if (resp.ok) {
@@ -188,7 +184,7 @@ function Dashboard() {
       }
     };
     fetchImpacts();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
   // Fetch risk drivers once result is available
@@ -202,7 +198,7 @@ function Dashboard() {
         const resp = await fetch(`${API_URL}/api/risk/drivers`, {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${idToken}`,
+            Authorization: `Bearer ${idToken}`,
           },
         });
         if (resp.ok) {
@@ -218,7 +214,7 @@ function Dashboard() {
       }
     };
     fetchDrivers();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
   // Fetch AI coach nudge once result is available
@@ -232,7 +228,7 @@ function Dashboard() {
         const resp = await fetch(`${API_URL}/api/coach/behavior`, {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${idToken}`,
+            Authorization: `Bearer ${idToken}`,
           },
         });
         if (resp.ok) {
@@ -248,7 +244,7 @@ function Dashboard() {
       }
     };
     fetchNudge();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
   if (!result || !profile) return <EmptyState />;
@@ -392,7 +388,7 @@ function Dashboard() {
   // Dynamic Journey calculations (Onboarding Roadmap Restructure)
   const hasCompletedAssessment = !!result;
   const lastUpdateDateStr = userStatus?.lastAssessmentUpdate || result?.updatedAt || null;
-  
+
   let profileAgeDays = 0;
   if (lastUpdateDateStr) {
     const lastUpdate = new Date(lastUpdateDateStr);
@@ -409,12 +405,14 @@ function Dashboard() {
 
   if (!hasCompletedAssessment) {
     nextStepTitle = "Complete Assessment";
-    nextStepDesc = "Fill in your demographic and physiological parameters to generate your profile.";
+    nextStepDesc =
+      "Fill in your demographic and physiological parameters to generate your profile.";
     nextStepLink = "/assessment";
     nextStepButton = "Start Assessment";
   } else if (!hasScannedFood) {
     nextStepTitle = "Scan your first food item";
-    nextStepDesc = "Use our AI scanner to assess packaged ingredient safety against your health risks.";
+    nextStepDesc =
+      "Use our AI scanner to assess packaged ingredient safety against your health risks.";
     nextStepLink = "/scanner";
     nextStepButton = "Open Scanner";
   } else {
@@ -449,23 +447,30 @@ function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Badge variant="secondary" className="rounded-full">
-            Clinical Assessment Portal
+            {tr("clinicalEngine", currentLang)}
           </Badge>
           <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            Your Health Summary
+            {tr("riskDashboard", currentLang)}
           </h1>
           <p className="mt-2 text-muted-foreground">
             Generated for a {profile.age}-year-old {profile.gender}, BMI {result.bmi.toFixed(1)}.
           </p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
-          <Button asChild variant="outline" className="border-teal/30 hover:bg-teal/5 text-teal hover:text-teal font-semibold">
+          <Button
+            asChild
+            variant="outline"
+            className="border-teal/30 hover:bg-teal/5 text-teal hover:text-teal font-semibold"
+          >
             <Link to="/simulator">Action Impact Explorer</Link>
           </Button>
           <Button asChild variant="outline">
             <Link to="/assessment">Re-run Assessment</Link>
           </Button>
-          <Button onClick={download} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer">
+          <Button
+            onClick={download}
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+          >
             <Download className="h-4 w-4" /> Download Report
           </Button>
         </div>
@@ -477,24 +482,34 @@ function Dashboard() {
         <div className="md:col-span-2 p-6 rounded-2xl bg-gradient-to-r from-teal/10 via-primary/5 to-surface border border-teal/10 flex flex-col justify-between space-y-4">
           <div>
             <h2 className="font-display text-base font-bold text-foreground flex items-center gap-2">
-              Your Journey Status
+              {tr("overview", currentLang)}
             </h2>
             <div className="flex flex-col gap-2.5 mt-3 text-xs">
               <div className="flex items-center gap-2 text-teal font-medium">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-teal/20 text-teal text-[10px] font-bold">✓</span>
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-teal/20 text-teal text-[10px] font-bold">
+                  ✓
+                </span>
                 <span>Assessment Complete</span>
               </div>
               <div className="flex items-center gap-2 text-teal font-medium">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-teal/20 text-teal text-[10px] font-bold">✓</span>
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-teal/20 text-teal text-[10px] font-bold">
+                  ✓
+                </span>
                 <span>Risk Profile Generated</span>
               </div>
               <div className="mt-2 p-3.5 rounded-xl border border-border bg-surface-muted/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider font-mono">Next Recommended Step:</span>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider font-mono">
+                    Next Recommended Step:
+                  </span>
                   <h4 className="font-bold text-foreground text-sm">{nextStepTitle}</h4>
                   <p className="text-[11px] text-muted-foreground leading-normal">{nextStepDesc}</p>
                 </div>
-                <Button asChild size="sm" className="bg-teal text-white hover:bg-teal/90 shrink-0 text-xs font-bold rounded-lg h-9">
+                <Button
+                  asChild
+                  size="sm"
+                  className="bg-teal text-white hover:bg-teal/90 shrink-0 text-xs font-bold rounded-lg h-9"
+                >
                   <Link to={nextStepLink}>{nextStepButton}</Link>
                 </Button>
               </div>
@@ -513,7 +528,9 @@ function Dashboard() {
             <div>
               <p className="text-xs text-muted-foreground">Profile Age</p>
               <h3 className="font-display text-3xl font-black text-foreground mt-1">
-                {profileAgeDays === 0 ? "Today" : `${profileAgeDays} ${profileAgeDays === 1 ? "day" : "days"} old`}
+                {profileAgeDays === 0
+                  ? "Today"
+                  : `${profileAgeDays} ${profileAgeDays === 1 ? "day" : "days"} old`}
               </h3>
             </div>
             <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-2.5 mt-2">
@@ -521,7 +538,11 @@ function Dashboard() {
             </div>
           </CardContent>
           <CardFooter className="pt-0 pb-4 justify-center bg-surface-muted/10 border-t border-border/30 rounded-b-xl py-3">
-            <Button asChild variant="ghost" className="text-xs font-bold text-teal hover:bg-teal/5 h-8">
+            <Button
+              asChild
+              variant="ghost"
+              className="text-xs font-bold text-teal hover:bg-teal/5 h-8"
+            >
               <Link to="/assessment">Update Assessment</Link>
             </Button>
           </CardFooter>
@@ -547,10 +568,16 @@ function Dashboard() {
                 ) : (
                   <div className="space-y-1.5 mt-1.5">
                     <p className="text-sm font-semibold text-foreground">
-                      Current focus: <span className="font-normal text-muted-foreground">{coachNudge?.insight || "Reduce sedentary lifestyle."}</span>
+                      Current focus:{" "}
+                      <span className="font-normal text-muted-foreground">
+                        {coachNudge?.insight || "Reduce sedentary lifestyle."}
+                      </span>
                     </p>
                     <p className="text-sm font-semibold text-foreground">
-                      Next action: <span className="font-normal text-muted-foreground">{coachNudge?.nextAction || "Take a 15-minute walk tomorrow morning."}</span>
+                      Next action:{" "}
+                      <span className="font-normal text-muted-foreground">
+                        {coachNudge?.nextAction || "Take a 15-minute walk tomorrow morning."}
+                      </span>
                     </p>
                   </div>
                 )}
@@ -572,11 +599,14 @@ function Dashboard() {
             <CardContent className="p-6 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                  <span>Overall Risk</span>
+                  <span>{tr("overallRisk", currentLang)}</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button type="button" className="text-muted-foreground/60 hover:text-foreground cursor-pointer">
+                        <button
+                          type="button"
+                          className="text-muted-foreground/60 hover:text-foreground cursor-pointer"
+                        >
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
@@ -609,7 +639,7 @@ function Dashboard() {
                   {result.overallRisk} Risk
                 </div>
               </div>
-              
+
               <div className="mt-6 border-t border-border/40 pt-4 space-y-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
                   Condition Risks Breakdown
@@ -643,13 +673,14 @@ function Dashboard() {
           <Card className="border-border bg-surface shadow-card-soft">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 font-display text-base text-foreground font-semibold">
-                <Brain className="h-4 w-4 text-teal animate-pulse-slow" /> Primary Risk Drivers
+                <Brain className="h-4 w-4 text-teal animate-pulse-slow" />{" "}
+                {tr("lifestyleImpact", currentLang)}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-1 flex flex-col justify-between h-[calc(100%-60px)]">
               {driversLoading ? (
                 <div className="flex flex-col gap-3.5 py-2">
-                  {[1, 2, 3].map(i => (
+                  {[1, 2, 3].map((i) => (
                     <div key={i} className="h-5 bg-muted/40 animate-pulse rounded-lg" />
                   ))}
                 </div>
@@ -658,7 +689,10 @@ function Dashboard() {
                   {/* Top Drivers List */}
                   <div className="space-y-3">
                     {riskDrivers.slice(0, 3).map((driver, index) => (
-                      <div key={index} className="flex justify-between items-center text-xs font-semibold">
+                      <div
+                        key={index}
+                        className="flex justify-between items-center text-xs font-semibold"
+                      >
                         <span className="text-foreground flex items-center gap-2">
                           <span className="text-teal font-bold">{index + 1}.</span>
                           <span>{driver.factor}</span>
@@ -673,7 +707,9 @@ function Dashboard() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-6 text-center text-xs text-muted-foreground">
                   <Brain className="h-8 w-8 text-teal/40 mb-2" />
-                  <span>No active risk drivers identified. Your health profile looks excellent!</span>
+                  <span>
+                    No active risk drivers identified. Your health profile looks excellent!
+                  </span>
                 </div>
               )}
             </CardContent>
@@ -684,13 +720,14 @@ function Dashboard() {
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal to-primary opacity-60" />
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 font-display text-base text-foreground font-semibold">
-                <TrendingDown className="h-4 w-4 text-teal" /> Highest Impact Actions
+                <TrendingDown className="h-4 w-4 text-teal" />{" "}
+                {tr("actionPrioritiesTitle", currentLang)}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1">
               {impactsLoading ? (
                 <div className="flex flex-col gap-2.5">
-                  {[1, 2, 3].map(i => (
+                  {[1, 2, 3].map((i) => (
                     <div key={i} className="h-16 rounded-lg bg-muted/40 animate-pulse" />
                   ))}
                 </div>
@@ -717,29 +754,42 @@ function Dashboard() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm">{action.icon}</span>
-                              <p className="text-xs font-semibold text-foreground truncate">{action.title}</p>
+                              <p className="text-xs font-semibold text-foreground truncate">
+                                {action.title}
+                              </p>
                             </div>
                             {/* Risk arrow */}
                             <div className="flex items-center gap-1 mt-0.5 text-[10px] text-muted-foreground font-mono">
-                              <span className="font-semibold" style={{ color: colorFor(action.currentRisk) }}>{action.currentRisk}%</span>
+                              <span
+                                className="font-semibold"
+                                style={{ color: colorFor(action.currentRisk) }}
+                              >
+                                {action.currentRisk}%
+                              </span>
                               <span>→</span>
-                              <span className="font-semibold text-teal">{action.projectedRisk}%</span>
+                              <span className="font-semibold text-teal">
+                                {action.projectedRisk}%
+                              </span>
                             </div>
                           </div>
                           {/* Reduction badge */}
-                          <div className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeColors[idx]}`}>
+                          <div
+                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeColors[idx]}`}
+                          >
                             -{action.absoluteReduction} pts
                           </div>
                         </div>
 
                         {/* Explainability Nudge (Step 3 of 11B) */}
                         <div className="mt-2 text-[10px] text-muted-foreground border-t border-border/30 pt-1.5">
-                          <span className="font-bold text-teal">Why?</span> {
-                            action.id === "exercise_30_min" ? "Sedentary lifestyle contributes to high diabetic and vascular indicators." :
-                            action.id === "lose_5kg" ? "Reducing body weight reduces loading strain on your cardiovascular system." :
-                            action.id === "improve_sleep" ? "Optimal sleep periods promote glycemic control and hormone balancing." :
-                            "Lifestyle adjustments reduce chronic physiological stresses."
-                          }
+                          <span className="font-bold text-teal">Why?</span>{" "}
+                          {action.id === "exercise_30_min"
+                            ? "Sedentary lifestyle contributes to high diabetic and vascular indicators."
+                            : action.id === "lose_5kg"
+                              ? "Reducing body weight reduces loading strain on your cardiovascular system."
+                              : action.id === "improve_sleep"
+                                ? "Optimal sleep periods promote glycemic control and hormone balancing."
+                                : "Lifestyle adjustments reduce chronic physiological stresses."}
                         </div>
                       </div>
                     );
@@ -749,23 +799,31 @@ function Dashboard() {
                 <div className="space-y-2.5">
                   {result.actionPriorities && result.actionPriorities.length > 0 ? (
                     result.actionPriorities.slice(0, 3).map((p, i) => (
-                      <div key={i} className="flex flex-col rounded-lg border border-border bg-surface-muted/65 p-2.5">
+                      <div
+                        key={i}
+                        className="flex flex-col rounded-lg border border-border bg-surface-muted/65 p-2.5"
+                      >
                         <div className="flex items-start gap-2.5">
                           <TrendingDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-foreground">{p.action}</p>
-                            <p className="text-[10px] text-teal mt-0.5">↓ {Math.abs(p.estimatedImpact)} pts estimated</p>
+                            <p className="text-[10px] text-teal mt-0.5">
+                              ↓ {Math.abs(p.estimatedImpact)} pts estimated
+                            </p>
                           </div>
                         </div>
                         <div className="mt-2 text-[10px] text-muted-foreground border-t border-border/30 pt-1.5">
-                          <span className="font-bold text-teal">Why?</span> Action targets your main clinical risk metrics.
+                          <span className="font-bold text-teal">Why?</span> Action targets your main
+                          clinical risk metrics.
                         </div>
                       </div>
                     ))
                   ) : (
                     <div className="flex items-center gap-2 rounded-lg border border-teal/20 bg-teal/5 p-3">
                       <Brain className="h-4 w-4 text-teal shrink-0" />
-                      <p className="text-xs text-teal font-medium">Your profile is well-optimised. Keep up the healthy habits!</p>
+                      <p className="text-xs text-teal font-medium">
+                        Your profile is well-optimised. Keep up the healthy habits!
+                      </p>
                     </div>
                   )}
                 </div>
@@ -773,7 +831,6 @@ function Dashboard() {
             </CardContent>
           </Card>
         </div>
-
 
         {/* Expert Review Card (Phase 9) */}
         <Card className="border-border bg-surface shadow-card-soft mt-6">
@@ -787,10 +844,14 @@ function Dashboard() {
                   Expert Clinical Review
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  {expertReviewStatus === "pending" && "Expert Review Status: Pending clinical specialist assignment. An expert will review your profile shortly."}
-                  {expertReviewStatus === "accepted" && "Expert Review Status: Accepted! Real-time clinical chat room is now active."}
-                  {expertReviewStatus === "completed" && "Expert Review Status: Review Completed! Click to view specialist feedback report."}
-                  {!expertReviewStatus && "Would you like a human medical expert to review your personalized health risk report?"}
+                  {expertReviewStatus === "pending" &&
+                    "Expert Review Status: Pending clinical specialist assignment. An expert will review your profile shortly."}
+                  {expertReviewStatus === "accepted" &&
+                    "Expert Review Status: Accepted! Real-time clinical chat room is now active."}
+                  {expertReviewStatus === "completed" &&
+                    "Expert Review Status: Review Completed! Click to view specialist feedback report."}
+                  {!expertReviewStatus &&
+                    "Would you like a human medical expert to review your personalized health risk report?"}
                 </p>
               </div>
             </div>

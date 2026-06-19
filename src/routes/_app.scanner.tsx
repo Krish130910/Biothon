@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
+import { useLanguage, tr } from "@/lib/i18n";
 import {
   ScanLine,
   Upload,
@@ -309,6 +310,7 @@ function analyzeRawText(text: string): Omit<IngredientReport, "rawText" | "name"
 }
 
 function ScannerPage() {
+  const currentLang = useLanguage();
   useEffect(() => {
     document.title = "Smart Ingredient Scanner — HealthGuard";
     return () => {
@@ -576,7 +578,7 @@ function ScannerPage() {
           Wellness Tool
         </Badge>
         <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-          Smart Ingredient Scanner
+          {tr("ingredientsScanner", currentLang)}
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-relaxed">
           Scan nutrition label photos, ingredient lists, or select a template to highlight potential
@@ -592,7 +594,7 @@ function ScannerPage() {
             <CardHeader className="pb-3 border-b border-border/40 flex flex-row items-center justify-between gap-4">
               <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Upload className="h-4 w-4 text-teal" />
-                Food Label Photo Source
+                {tr("scanPhoto", currentLang)}
               </CardTitle>
               {!isCameraActive ? (
                 <Button
@@ -689,7 +691,7 @@ function ScannerPage() {
             <CardHeader className="pb-3 border-b border-border/40">
               <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <FileText className="h-4 w-4 text-teal" />
-                Copy-Paste Ingredient List
+                {tr("textInput", currentLang)}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5">
@@ -792,7 +794,9 @@ function ScannerPage() {
                         <div className="text-[10px] font-bold uppercase tracking-wider text-teal font-mono">
                           Personalized
                         </div>
-                        <div className={`text-base font-extrabold ${getScoreTextColor(report.personalizedScore ?? report.score)}`}>
+                        <div
+                          className={`text-base font-extrabold ${getScoreTextColor(report.personalizedScore ?? report.score)}`}
+                        >
                           {report.personalizedScore ?? report.score}/10
                         </div>
                       </div>
@@ -830,11 +834,17 @@ function ScannerPage() {
                       </div>
                       {report.diabetesImpactPoints !== undefined ? (
                         report.diabetesImpactPoints >= 8 ? (
-                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">↑ High</Badge>
+                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">
+                            ↑ High
+                          </Badge>
                         ) : report.diabetesImpactPoints > 0 ? (
-                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">→ Mod</Badge>
+                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">
+                            → Mod
+                          </Badge>
                         ) : (
-                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">✓ Low</Badge>
+                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">
+                            ✓ Low
+                          </Badge>
                         )
                       ) : null}
                     </div>
@@ -856,11 +866,17 @@ function ScannerPage() {
                       </div>
                       {report.hypertensionImpactPoints !== undefined ? (
                         report.hypertensionImpactPoints >= 8 ? (
-                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">↑ High</Badge>
+                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">
+                            ↑ High
+                          </Badge>
                         ) : report.hypertensionImpactPoints > 0 ? (
-                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">→ Mod</Badge>
+                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">
+                            → Mod
+                          </Badge>
                         ) : (
-                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">✓ Low</Badge>
+                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">
+                            ✓ Low
+                          </Badge>
                         )
                       ) : null}
                     </div>
@@ -882,11 +898,17 @@ function ScannerPage() {
                       </div>
                       {report.heartImpactPoints !== undefined ? (
                         report.heartImpactPoints >= 8 ? (
-                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">↑ High</Badge>
+                          <Badge className="bg-red-500/10 text-red-600 border border-red-500/20 text-[9px] font-bold py-0 px-1.5">
+                            ↑ High
+                          </Badge>
                         ) : report.heartImpactPoints > 0 ? (
-                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">→ Mod</Badge>
+                          <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] font-bold py-0 px-1.5">
+                            → Mod
+                          </Badge>
                         ) : (
-                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">✓ Low</Badge>
+                          <Badge className="bg-green-500/10 text-green-600 border border-green-500/20 text-[9px] font-bold py-0 px-1.5">
+                            ✓ Low
+                          </Badge>
                         )
                       ) : null}
                     </div>
@@ -902,7 +924,8 @@ function ScannerPage() {
                 <Card className="border-border bg-surface shadow-card-soft">
                   <CardHeader className="pb-3 border-b border-border/40">
                     <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-teal animate-pulse-slow" /> Recommended Alternatives
+                      <Sparkles className="h-4 w-4 text-teal animate-pulse-slow" /> Recommended
+                      Alternatives
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-5">

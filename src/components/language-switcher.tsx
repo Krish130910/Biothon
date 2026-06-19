@@ -40,7 +40,10 @@ export function LanguageSwitcher({ variant = "header" }: { variant?: "header" | 
           return (
             <DropdownMenuItem
               key={l.code}
-              onSelect={() => setLang(l.code as Lang)}
+              onSelect={() => {
+                setLang(l.code as Lang);
+                window.dispatchEvent(new Event("hg:language-change"));
+              }}
               className="flex items-center justify-between gap-2"
             >
               <div className="flex flex-col">

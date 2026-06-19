@@ -38,7 +38,7 @@ function ActionImpactExplorerPage() {
     absoluteReduction: number;
     relativeReduction: number;
   }
-  
+
   const [actionImpacts, setActionImpacts] = useState<ActionImpact[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -57,7 +57,7 @@ function ActionImpactExplorerPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${idToken}`,
+            Authorization: `Bearer ${idToken}`,
           },
         });
         if (resp.ok) {
@@ -121,7 +121,8 @@ function ActionImpactExplorerPage() {
           Action Impact Explorer
         </h1>
         <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
-          See how much you can reduce your clinical risk profile by committing to key lifestyle habits.
+          See how much you can reduce your clinical risk profile by committing to key lifestyle
+          habits.
         </p>
       </div>
 
@@ -170,7 +171,9 @@ function ActionImpactExplorerPage() {
             {loading ? (
               <div className="flex flex-col gap-3 justify-center items-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-teal" />
-                <span className="text-xs text-muted-foreground">Calculating health benefits...</span>
+                <span className="text-xs text-muted-foreground">
+                  Calculating health benefits...
+                </span>
               </div>
             ) : actionImpacts.length > 0 ? (
               <div className="flex flex-col gap-3">
@@ -187,19 +190,26 @@ function ActionImpactExplorerPage() {
                     >
                       {/* Icon */}
                       <span className="text-2xl shrink-0">{action.icon}</span>
-                      
+
                       {/* Details */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-foreground truncate">{action.title}</p>
                         <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground font-mono">
-                          <span className="font-bold" style={{ color: colorFor(action.currentRisk) }}>{action.currentRisk}%</span>
+                          <span
+                            className="font-bold"
+                            style={{ color: colorFor(action.currentRisk) }}
+                          >
+                            {action.currentRisk}%
+                          </span>
                           <span>→</span>
                           <span className="font-bold text-teal">{action.projectedRisk}%</span>
                         </div>
                       </div>
 
                       {/* Benefit */}
-                      <div className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-black ${badgeColors[idx % 3]}`}>
+                      <div
+                        className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-black ${badgeColors[idx % 3]}`}
+                      >
                         -{action.absoluteReduction} pts
                       </div>
                     </div>
@@ -218,7 +228,9 @@ function ActionImpactExplorerPage() {
 
       <div className="flex justify-end pt-4">
         <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/95">
-          <Link to="/action-plan">View Action Plan <ArrowRight className="ml-2 h-4 w-4" /></Link>
+          <Link to="/action-plan">
+            View Action Plan <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
         </Button>
       </div>
     </div>

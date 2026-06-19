@@ -16,14 +16,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
+import { useHealthResult } from "@/lib/health-store";
+
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
 
 function AppLayout() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, syncing, logout } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [result] = useHealthResult();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,21 +35,21 @@ function AppLayout() {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (!loading && user) {
-      const hasAssessment = !!localStorage.getItem("hg.result.v1");
+    if (!loading && !syncing && user) {
+      const hasAssessment = !!result;
       if (!hasAssessment && pathname !== "/assessment") {
         navigate({ to: "/assessment" });
       }
     }
-  }, [user, loading, pathname, navigate]);
+  }, [user, loading, syncing, pathname, navigate, result]);
 
-  if (loading) {
+  if (loading || syncing) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-10 w-10 animate-spin text-teal" />
           <p className="text-sm font-medium text-muted-foreground">
-            Verifying secure credentials...
+            {syncing ? "Syncing patient record..." : "Verifying secure credentials..."}
           </p>
         </div>
       </div>

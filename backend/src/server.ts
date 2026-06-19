@@ -16,7 +16,6 @@ import { PredictionService } from "./services/prediction.service.js";
 import { BehaviorService } from "./services/behavior.service.js";
 import expertReviewRoutes from "./routes/expertReview.routes.js";
 
-
 dotenv.config();
 
 const app = express();
@@ -28,7 +27,6 @@ app.use(express.json());
 
 // Mount Expert Review Routes
 app.use("/api/expert-review", expertReviewRoutes);
-
 
 // Zod schema for profile validation
 const ProfileSchema = z.object({

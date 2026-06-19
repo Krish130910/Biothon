@@ -29,29 +29,30 @@ import { useHealthResult, useProfile } from "@/lib/health-store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useLanguage, tr } from "@/lib/i18n";
 
 const product = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/scanner", label: "Food Scanner", icon: ScanLine },
-  { to: "/action-plan", label: "Action Plan", icon: Brain },
-  { to: "/progress", label: "Progress", icon: Activity },
-  { to: "/expert-review", label: "Expert Review", icon: Stethoscope },
-  { to: "/profile", label: "Profile", icon: User },
-];
-
+  { to: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  { to: "/scanner", labelKey: "foodScanner", icon: ScanLine },
+  { to: "/action-plan", labelKey: "actionPlan", icon: Brain },
+  { to: "/progress", labelKey: "progress", icon: Activity },
+  { to: "/expert-review", labelKey: "expertReview", icon: Stethoscope },
+  { to: "/profile", labelKey: "profile", icon: User },
+] as const;
 
 const more = [
-  { to: "/about", label: "About", icon: Info },
-  { to: "/contact", label: "Support", icon: LifeBuoy },
-];
+  { to: "/about", labelKey: "about", icon: Info },
+  { to: "/contact", labelKey: "support", icon: LifeBuoy },
+] as const;
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const search = useRouterState({ select: (s) => s.location.search });
-  const tabParam = (search as any).tab;
+  const tabParam = (search as Record<string, unknown>).tab;
   const [result] = useHealthResult();
+  const currentLang = useLanguage();
 
   return (
     <Sidebar
@@ -71,7 +72,7 @@ export function AppSidebar() {
               HealthGuard
             </div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-teal/85 truncate">
-              Health Insights
+              {tr("appName", currentLang)}
             </div>
           </div>
         </Link>
@@ -81,22 +82,19 @@ export function AppSidebar() {
         {/* Health Platform Group */}
         <SidebarGroup className="px-3 group-data-[collapsible=icon]:px-2 transition-all duration-300">
           <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.15em] text-teal/65 mb-2 px-3 group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:px-0">
-            Health Platform
+            {tr("healthPlatform", currentLang)}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1.5">
               {product.map((item) => {
-                const active = item.search
-                  ? pathname === item.to && tabParam === item.search.tab
-                  : item.to === "/dashboard"
-                    ? pathname === "/dashboard" && (!tabParam || tabParam === "overview")
-                    : pathname === item.to;
+                const labelText = tr(item.labelKey, currentLang);
+                const active = pathname === item.to;
                 return (
-                  <SidebarMenuItem key={item.label}>
+                  <SidebarMenuItem key={item.labelKey}>
                     <SidebarMenuButton
                       asChild
                       isActive={active}
-                      tooltip={item.label}
+                      tooltip={labelText}
                       className={cn(
                         "relative transition-all duration-300 h-10 border-l-2 pr-3 pl-[10px] flex items-center group-data-[collapsible=icon]:border-l-0 group-data-[collapsible=icon]:p-0",
                         active
@@ -106,7 +104,6 @@ export function AppSidebar() {
                     >
                       <Link
                         to={item.to}
-                        search={item.search}
                         className="flex items-center gap-3 w-full justify-start group-data-[collapsible=icon]:justify-center"
                       >
                         <div
@@ -120,7 +117,7 @@ export function AppSidebar() {
                           <item.icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
                         </div>
                         <span className="text-sm tracking-wide transition-all duration-300 origin-left group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:pointer-events-none group-data-[state=collapsed]:translate-x-3 group-data-[state=collapsed]:w-0 truncate">
-                          {item.label}
+                          {labelText}
                         </span>
                       </Link>
                     </SidebarMenuButton>
@@ -134,18 +131,19 @@ export function AppSidebar() {
         {/* Resources Group */}
         <SidebarGroup className="px-3 group-data-[collapsible=icon]:px-2 transition-all duration-300">
           <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.15em] text-teal/65 mb-2 px-3 group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:px-0">
-            Resources
+            {tr("resources", currentLang)}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1.5">
               {more.map((item) => {
+                const labelText = tr(item.labelKey, currentLang);
                 const active = pathname === item.to;
                 return (
-                  <SidebarMenuItem key={item.to}>
+                  <SidebarMenuItem key={item.labelKey}>
                     <SidebarMenuButton
                       asChild
                       isActive={active}
-                      tooltip={item.label}
+                      tooltip={labelText}
                       className={cn(
                         "relative transition-all duration-300 h-10 border-l-2 pr-3 pl-[10px] flex items-center group-data-[collapsible=icon]:border-l-0 group-data-[collapsible=icon]:p-0",
                         active
@@ -168,7 +166,7 @@ export function AppSidebar() {
                           <item.icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
                         </div>
                         <span className="text-sm tracking-wide transition-all duration-300 origin-left group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:pointer-events-none group-data-[state=collapsed]:translate-x-3 group-data-[state=collapsed]:w-0 truncate">
-                          {item.label}
+                          {labelText}
                         </span>
                       </Link>
                     </SidebarMenuButton>

@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useLanguage, tr } from "@/lib/i18n";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/_app/profile")({
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function ProfilePage() {
+  const currentLang = useLanguage();
   useEffect(() => {
     document.title = "User Profile — HealthGuard";
   }, []);
@@ -73,7 +75,6 @@ function ProfilePage() {
     });
   };
 
-
   useEffect(() => {
     if (user) {
       console.log("Firebase Auth User PhotoURL:", user.photoURL);
@@ -105,7 +106,9 @@ function ProfilePage() {
       {/* Header section with back button */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">User Profile</h1>
+          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">
+            {tr("profile", currentLang)}
+          </h1>
         </div>
         <Button
           asChild
@@ -207,7 +210,9 @@ function ProfilePage() {
                   onClick={() => navigate({ to: "/assessment" })}
                   className="w-full bg-teal text-white hover:bg-teal/95 font-bold text-xs h-9 cursor-pointer"
                 >
-                  {assessmentStatus?.hasCompletedAssessment ? "Reassess Health Profile" : "Start Initial Assessment"}
+                  {assessmentStatus?.hasCompletedAssessment
+                    ? "Reassess Health Profile"
+                    : "Start Initial Assessment"}
                 </Button>
               </CardFooter>
             </Card>

@@ -1,28 +1,43 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/auth-context";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  Stethoscope, 
-  Send, 
-  Loader2, 
-  CheckCircle2, 
-  Clock, 
-  MessageSquare, 
-  User, 
-  ArrowLeft, 
-  HeartPulse, 
-  Activity, 
-  TrendingUp, 
+import {
+  Stethoscope,
+  Send,
+  Loader2,
+  CheckCircle2,
+  Clock,
+  MessageSquare,
+  User,
+  ArrowLeft,
+  HeartPulse,
+  Activity,
+  TrendingUp,
   AlertTriangle,
-  UserPlus
+  UserPlus,
 } from "lucide-react";
 import { isConfigured, db, auth } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/expert-dashboard")({
@@ -38,30 +53,34 @@ function subscribeToMessages(requestId: string, onUpdate: (messages: any[]) => v
       const q = query(
         collection(db, "expertMessages"),
         where("requestId", "==", requestId),
-        orderBy("createdAt", "asc")
+        orderBy("createdAt", "asc"),
       );
-      return onSnapshot(q, (snapshot) => {
-        const messages = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          let date = new Date();
-          if (data.createdAt) {
-            if (data.createdAt.seconds) {
-              date = new Date(data.createdAt.seconds * 1000);
-            } else {
-              date = new Date(data.createdAt);
+      return onSnapshot(
+        q,
+        (snapshot) => {
+          const messages = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            let date = new Date();
+            if (data.createdAt) {
+              if (data.createdAt.seconds) {
+                date = new Date(data.createdAt.seconds * 1000);
+              } else {
+                date = new Date(data.createdAt);
+              }
             }
-          }
-          return {
-            id: doc.id,
-            ...data,
-            createdAtParsed: date
-          };
-        });
-        onUpdate(messages);
-      }, (err) => {
-        console.warn("Firestore listener failed, falling back to polling:", err);
-        return setupPolling(requestId, onUpdate);
-      });
+            return {
+              id: doc.id,
+              ...data,
+              createdAtParsed: date,
+            };
+          });
+          onUpdate(messages);
+        },
+        (err) => {
+          console.warn("Firestore listener failed, falling back to polling:", err);
+          return setupPolling(requestId, onUpdate);
+        },
+      );
     } catch (e) {
       console.warn("Error setting up Firestore listener, falling back to polling:", e);
       return setupPolling(requestId, onUpdate);
@@ -89,7 +108,7 @@ function setupPolling(requestId: string, onUpdate: (messages: any[]) => void) {
         if (data.success) {
           const formatted = data.messages.map((m: any) => ({
             ...m,
-            createdAtParsed: new Date(m.createdAt)
+            createdAtParsed: new Date(m.createdAt),
           }));
           onUpdate(formatted);
         }
@@ -107,7 +126,12 @@ function setupPolling(requestId: string, onUpdate: (messages: any[]) => void) {
   };
 }
 
-async function sendMessage(requestId: string, senderId: string, senderRole: "user" | "expert", message: string) {
+async function sendMessage(
+  requestId: string,
+  senderId: string,
+  senderRole: "user" | "expert",
+  message: string,
+) {
   if (isConfigured) {
     try {
       await addDoc(collection(db, "expertMessages"), {
@@ -155,7 +179,7 @@ function ExpertDashboardPage() {
 
   // Detail View State
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
-  
+
   // Chat States
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessageText, setNewMessageText] = useState("");
@@ -188,7 +212,7 @@ function ExpertDashboardPage() {
       if (auth.currentUser) {
         idToken = await auth.currentUser.getIdToken();
       }
-      
+
       // We check by requesting the pending reviews endpoint. If it returns 403, we are not an expert!
       const res = await fetch(`${API_URL}/api/expert-review/pending`, {
         headers: {
@@ -247,7 +271,10 @@ function ExpertDashboardPage() {
 
   // Setup real-time listener for the active request's chat
   useEffect(() => {
-    if (!selectedRequest || (selectedRequest.status !== "accepted" && selectedRequest.status !== "completed")) {
+    if (
+      !selectedRequest ||
+      (selectedRequest.status !== "accepted" && selectedRequest.status !== "completed")
+    ) {
       setMessages([]);
       return;
     }
@@ -281,8 +308,8 @@ function ExpertDashboardPage() {
         },
         body: JSON.stringify({
           role: "doctor",
-          specialization: "Integrative Cardiology & Metabolic Health"
-        })
+          specialization: "Integrative Cardiology & Metabolic Health",
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -318,7 +345,16 @@ function ExpertDashboardPage() {
         toast.success("Request accepted successfully! Chat is now open.");
         fetchLists();
         // Update local detail state immediately
-        setSelectedRequest((prev: any) => prev ? { ...prev, status: "accepted", assignedExpertId: user?.uid, assignedExpertName: data.assignedExpertName } : null);
+        setSelectedRequest((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                status: "accepted",
+                assignedExpertId: user?.uid,
+                assignedExpertName: data.assignedExpertName,
+              }
+            : null,
+        );
       } else {
         toast.error(data.error || "Failed to accept request.");
       }
@@ -395,13 +431,19 @@ function ExpertDashboardPage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-500 mb-6">
             <AlertTriangle className="h-7 w-7" />
           </div>
-          <CardTitle className="font-display text-2xl font-bold">Expert Portal Restricted</CardTitle>
+          <CardTitle className="font-display text-2xl font-bold">
+            Expert Portal Restricted
+          </CardTitle>
           <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
-            Your current account does not have clinical expert permissions. To view pending patient records, you must register your account in our sandbox.
+            Your current account does not have clinical expert permissions. To view pending patient
+            records, you must register your account in our sandbox.
           </p>
           <div className="bg-surface-muted/30 border border-border p-4 rounded-xl mt-6 text-xs text-left leading-relaxed text-muted-foreground space-y-2">
             <p className="font-bold text-foreground">🧪 Sandbox Instructions</p>
-            <p>We provide a mock registration path for local validators. Click the button below to mark your Firebase UID as a verified specialist.</p>
+            <p>
+              We provide a mock registration path for local validators. Click the button below to
+              mark your Firebase UID as a verified specialist.
+            </p>
           </div>
           <CardFooter className="flex flex-col gap-3 mt-8 p-0">
             <Button
@@ -440,7 +482,9 @@ function ExpertDashboardPage() {
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-teal text-white">
             <HeartPulse className="h-4.5 w-4.5" strokeWidth={2.4} />
           </div>
-          <span className="font-display font-bold text-sm tracking-wide">HealthGuard Expert Portal</span>
+          <span className="font-display font-bold text-sm tracking-wide">
+            HealthGuard Expert Portal
+          </span>
         </Link>
         <span className="inline-flex items-center rounded-full bg-teal/10 px-2 py-0.5 text-[10px] font-bold text-teal border border-teal/20 font-mono">
           CLINICAL PORTAL
@@ -458,14 +502,15 @@ function ExpertDashboardPage() {
           <div className="h-8 w-px bg-border" />
           <div className="flex flex-col text-right leading-none">
             <span className="text-xs font-bold">{user?.displayName || "Medical Advisor"}</span>
-            <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-mono mt-0.5">Specialist</span>
+            <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-mono mt-0.5">
+              Specialist
+            </span>
           </div>
         </div>
       </header>
 
       {/* Main clinical dashboard layout */}
       <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full grid gap-8 md:grid-cols-3">
-        
         {/* Left column: List of pending & active reviews */}
         <div className="space-y-6 md:col-span-1">
           {/* Active Reviews (Reviews Accepted by this expert) */}
@@ -569,7 +614,9 @@ function ExpertDashboardPage() {
               </div>
               <h3 className="font-display text-lg font-bold">Select a Patient Record</h3>
               <p className="text-xs text-muted-foreground mt-2 max-w-sm leading-relaxed">
-                Click on any active review request or pending patient submission from the sidebar to open the patient snapshot, calculated health risk drivers, scanned foods, and direct communication room.
+                Click on any active review request or pending patient submission from the sidebar to
+                open the patient snapshot, calculated health risk drivers, scanned foods, and direct
+                communication room.
               </p>
             </Card>
           ) : (
@@ -586,8 +633,12 @@ function ExpertDashboardPage() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="leading-snug">
-                      <CardTitle className="text-base font-bold">{selectedRequest.userName}</CardTitle>
-                      <CardDescription className="text-[11px] text-muted-foreground">{selectedRequest.userEmail}</CardDescription>
+                      <CardTitle className="text-base font-bold">
+                        {selectedRequest.userName}
+                      </CardTitle>
+                      <CardDescription className="text-[11px] text-muted-foreground">
+                        {selectedRequest.userEmail}
+                      </CardDescription>
                     </div>
                   </div>
 
@@ -627,20 +678,59 @@ function ExpertDashboardPage() {
                   <div className="grid gap-6 md:grid-cols-2">
                     {/* Demographics & Lifestyle */}
                     <div className="space-y-4">
-                      <h4 className="font-display text-xs font-mono uppercase tracking-wider text-muted-foreground">Demographics & Lifestyle</h4>
+                      <h4 className="font-display text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                        Demographics & Lifestyle
+                      </h4>
                       <div className="grid grid-cols-2 gap-3 bg-surface-muted/30 p-3 rounded-lg border border-border/60 text-xs">
-                        <div>Age: <span className="font-bold text-foreground">{selectedRequest.profileSnapshot?.age} years</span></div>
-                        <div>Gender: <span className="font-bold text-foreground capitalize">{selectedRequest.profileSnapshot?.gender}</span></div>
-                        <div>BMI: <span className="font-bold text-foreground font-mono">{selectedRequest.profileSnapshot?.bmi?.toFixed(1)}</span></div>
-                        <div>Weight: <span className="font-bold text-foreground">{selectedRequest.profileSnapshot?.weight} kg</span></div>
-                        <div>Height: <span className="font-bold text-foreground">{selectedRequest.profileSnapshot?.height} cm</span></div>
-                        <div>Smoking: <span className="font-bold text-foreground capitalize">{selectedRequest.profileSnapshot?.lifestyle?.smoking}</span></div>
-                        <div className="col-span-2">Exercise: <span className="font-bold text-foreground capitalize">{selectedRequest.profileSnapshot?.lifestyle?.exercise}</span></div>
+                        <div>
+                          Age:{" "}
+                          <span className="font-bold text-foreground">
+                            {selectedRequest.profileSnapshot?.age} years
+                          </span>
+                        </div>
+                        <div>
+                          Gender:{" "}
+                          <span className="font-bold text-foreground capitalize">
+                            {selectedRequest.profileSnapshot?.gender}
+                          </span>
+                        </div>
+                        <div>
+                          BMI:{" "}
+                          <span className="font-bold text-foreground font-mono">
+                            {selectedRequest.profileSnapshot?.bmi?.toFixed(1)}
+                          </span>
+                        </div>
+                        <div>
+                          Weight:{" "}
+                          <span className="font-bold text-foreground">
+                            {selectedRequest.profileSnapshot?.weight} kg
+                          </span>
+                        </div>
+                        <div>
+                          Height:{" "}
+                          <span className="font-bold text-foreground">
+                            {selectedRequest.profileSnapshot?.height} cm
+                          </span>
+                        </div>
+                        <div>
+                          Smoking:{" "}
+                          <span className="font-bold text-foreground capitalize">
+                            {selectedRequest.profileSnapshot?.lifestyle?.smoking}
+                          </span>
+                        </div>
+                        <div className="col-span-2">
+                          Exercise:{" "}
+                          <span className="font-bold text-foreground capitalize">
+                            {selectedRequest.profileSnapshot?.lifestyle?.exercise}
+                          </span>
+                        </div>
                       </div>
 
                       {selectedRequest.profileSnapshot?.symptoms && (
                         <div className="space-y-1.5">
-                          <span className="text-[10px] font-mono uppercase text-muted-foreground">Symptoms Logged:</span>
+                          <span className="text-[10px] font-mono uppercase text-muted-foreground">
+                            Symptoms Logged:
+                          </span>
                           <p className="text-xs text-muted-foreground bg-muted/40 p-2.5 rounded-lg border border-border/30 italic">
                             "{selectedRequest.profileSnapshot.symptoms}"
                           </p>
@@ -649,7 +739,9 @@ function ExpertDashboardPage() {
 
                       {selectedRequest.profileSnapshot?.familyHistory && (
                         <div className="space-y-1.5">
-                          <span className="text-[10px] font-mono uppercase text-muted-foreground">Family History:</span>
+                          <span className="text-[10px] font-mono uppercase text-muted-foreground">
+                            Family History:
+                          </span>
                           <p className="text-xs text-muted-foreground bg-muted/40 p-2.5 rounded-lg border border-border/30">
                             {selectedRequest.profileSnapshot.familyHistory}
                           </p>
@@ -659,10 +751,14 @@ function ExpertDashboardPage() {
 
                     {/* Calculated Health Risk Scores */}
                     <div className="space-y-4">
-                      <h4 className="font-display text-xs font-mono uppercase tracking-wider text-muted-foreground">Calculated Health Risks</h4>
+                      <h4 className="font-display text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                        Calculated Health Risks
+                      </h4>
                       <div className="space-y-3 bg-surface-muted/30 p-4 rounded-lg border border-border/60 text-xs">
                         <div className="flex justify-between items-center">
-                          <span className="font-semibold flex items-center gap-1.5"><TrendingUp className="h-4.5 w-4.5 text-teal" /> Overall Risk:</span>
+                          <span className="font-semibold flex items-center gap-1.5">
+                            <TrendingUp className="h-4.5 w-4.5 text-teal" /> Overall Risk:
+                          </span>
                           <Badge className="bg-teal/15 text-teal hover:bg-teal/15 font-bold uppercase rounded-full">
                             {selectedRequest.riskSummary?.overallRisk || "Unknown"}
                           </Badge>
@@ -671,30 +767,45 @@ function ExpertDashboardPage() {
                         <div className="border-t border-border/40 my-2 pt-2 space-y-2">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Diabetes Risk:</span>
-                            <span className="font-bold font-mono">{Math.round(selectedRequest.riskSummary?.diabetesRisk || 0)}%</span>
+                            <span className="font-bold font-mono">
+                              {Math.round(selectedRequest.riskSummary?.diabetesRisk || 0)}%
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Heart Disease Risk:</span>
-                            <span className="font-bold font-mono">{Math.round(selectedRequest.riskSummary?.heartRisk || 0)}%</span>
+                            <span className="font-bold font-mono">
+                              {Math.round(selectedRequest.riskSummary?.heartRisk || 0)}%
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Hypertension Risk:</span>
-                            <span className="font-bold font-mono">{Math.round(selectedRequest.riskSummary?.hypertensionRisk || 0)}%</span>
+                            <span className="font-bold font-mono">
+                              {Math.round(selectedRequest.riskSummary?.hypertensionRisk || 0)}%
+                            </span>
                           </div>
                         </div>
 
-                        {selectedRequest.riskSummary?.topDrivers && selectedRequest.riskSummary.topDrivers.length > 0 && (
-                          <div className="border-t border-border/40 pt-2.5 space-y-1">
-                            <span className="text-[10px] font-mono uppercase text-muted-foreground">Key Drivers:</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {selectedRequest.riskSummary.topDrivers.map((driver: string, idx: number) => (
-                                <Badge key={idx} variant="outline" className="text-[10px] bg-background border-border py-0">
-                                  {driver}
-                                </Badge>
-                              ))}
+                        {selectedRequest.riskSummary?.topDrivers &&
+                          selectedRequest.riskSummary.topDrivers.length > 0 && (
+                            <div className="border-t border-border/40 pt-2.5 space-y-1">
+                              <span className="text-[10px] font-mono uppercase text-muted-foreground">
+                                Key Drivers:
+                              </span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {selectedRequest.riskSummary.topDrivers.map(
+                                  (driver: string, idx: number) => (
+                                    <Badge
+                                      key={idx}
+                                      variant="outline"
+                                      className="text-[10px] bg-background border-border py-0"
+                                    >
+                                      {driver}
+                                    </Badge>
+                                  ),
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
                       </div>
                     </div>
                   </div>
@@ -702,7 +813,8 @@ function ExpertDashboardPage() {
               </Card>
 
               {/* Real-time Message Room for Expert */}
-              {(selectedRequest.status === "accepted" || selectedRequest.status === "completed") && (
+              {(selectedRequest.status === "accepted" ||
+                selectedRequest.status === "completed") && (
                 <Card className="border-border bg-surface shadow-card-soft flex flex-col h-[500px]">
                   <CardHeader className="border-b border-border/50 py-3 px-4 flex flex-row items-center justify-between shrink-0 bg-surface-muted/20">
                     <div className="flex items-center gap-2">
@@ -724,7 +836,9 @@ function ExpertDashboardPage() {
                       <div className="h-full flex flex-col items-center justify-center text-center text-xs text-muted-foreground p-6">
                         <MessageSquare className="h-8 w-8 text-teal/40 mb-2" />
                         <p className="font-semibold text-foreground">Initiate Clinical Feedback</p>
-                        <p className="max-w-xs mt-1 text-[11px]">Type a note below to send medical analysis or advice to the patient.</p>
+                        <p className="max-w-xs mt-1 text-[11px]">
+                          Type a note below to send medical analysis or advice to the patient.
+                        </p>
                       </div>
                     ) : (
                       messages.map((msg) => {
@@ -737,7 +851,9 @@ function ExpertDashboardPage() {
                             }`}
                           >
                             <Avatar className="h-6 w-6 border border-border/50 shrink-0">
-                              <AvatarFallback className={`text-[9px] font-bold ${isMe ? "bg-teal text-white" : "bg-primary text-primary-foreground"}`}>
+                              <AvatarFallback
+                                className={`text-[9px] font-bold ${isMe ? "bg-teal text-white" : "bg-primary text-primary-foreground"}`}
+                              >
                                 {isMe ? "EX" : "PT"}
                               </AvatarFallback>
                             </Avatar>
@@ -751,7 +867,10 @@ function ExpertDashboardPage() {
                               <p className="whitespace-pre-wrap">{msg.message}</p>
                               <span className="block text-[8px] opacity-75 mt-1 font-mono text-right">
                                 {msg.createdAtParsed
-                                  ? msg.createdAtParsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                  ? msg.createdAtParsed.toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
                                   : ""}
                               </span>
                             </div>
@@ -785,7 +904,11 @@ function ExpertDashboardPage() {
                       />
                       <Button
                         type="submit"
-                        disabled={selectedRequest.status === "completed" || sendingMsg || !newMessageText.trim()}
+                        disabled={
+                          selectedRequest.status === "completed" ||
+                          sendingMsg ||
+                          !newMessageText.trim()
+                        }
                         className="bg-teal text-white hover:bg-teal/90 h-10 w-10 shrink-0 p-0 rounded-lg shadow-sm"
                       >
                         {sendingMsg ? (

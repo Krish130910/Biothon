@@ -178,9 +178,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       try {
-        const idToken = typeof user.getIdToken === "function"
-          ? await user.getIdToken()
-          : (auth.currentUser ? await auth.currentUser.getIdToken() : "mock-token");
+        const idToken =
+          typeof user.getIdToken === "function"
+            ? await user.getIdToken()
+            : auth.currentUser
+              ? await auth.currentUser.getIdToken()
+              : "mock-token";
 
         // We only write to backend if we have a profile to sync
         if (profile) {

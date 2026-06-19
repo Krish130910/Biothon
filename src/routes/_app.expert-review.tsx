@@ -2,27 +2,42 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useProfile, useHealthResult } from "@/lib/health-store";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { 
-  Stethoscope, 
-  Send, 
-  Loader2, 
-  XCircle, 
-  Clock, 
-  MessageSquare, 
-  CheckCircle2, 
-  ShieldAlert, 
+import {
+  Stethoscope,
+  Send,
+  Loader2,
+  XCircle,
+  Clock,
+  MessageSquare,
+  CheckCircle2,
+  ShieldAlert,
   ArrowRight,
   UserCheck,
-  Activity
+  Activity,
 } from "lucide-react";
 import { isConfigured, db, auth } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/expert-review")({
@@ -38,31 +53,35 @@ function subscribeToMessages(requestId: string, onUpdate: (messages: any[]) => v
       const q = query(
         collection(db, "expertMessages"),
         where("requestId", "==", requestId),
-        orderBy("createdAt", "asc")
+        orderBy("createdAt", "asc"),
       );
-      return onSnapshot(q, (snapshot) => {
-        const messages = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          // Ensure we parse date nicely from serverTimestamp or ISO string
-          let date = new Date();
-          if (data.createdAt) {
-            if (data.createdAt.seconds) {
-              date = new Date(data.createdAt.seconds * 1000);
-            } else {
-              date = new Date(data.createdAt);
+      return onSnapshot(
+        q,
+        (snapshot) => {
+          const messages = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            // Ensure we parse date nicely from serverTimestamp or ISO string
+            let date = new Date();
+            if (data.createdAt) {
+              if (data.createdAt.seconds) {
+                date = new Date(data.createdAt.seconds * 1000);
+              } else {
+                date = new Date(data.createdAt);
+              }
             }
-          }
-          return {
-            id: doc.id,
-            ...data,
-            createdAtParsed: date
-          };
-        });
-        onUpdate(messages);
-      }, (err) => {
-        console.warn("Firestore listener failed, falling back to polling:", err);
-        return setupPolling(requestId, onUpdate);
-      });
+            return {
+              id: doc.id,
+              ...data,
+              createdAtParsed: date,
+            };
+          });
+          onUpdate(messages);
+        },
+        (err) => {
+          console.warn("Firestore listener failed, falling back to polling:", err);
+          return setupPolling(requestId, onUpdate);
+        },
+      );
     } catch (e) {
       console.warn("Error setting up Firestore listener, falling back to polling:", e);
       return setupPolling(requestId, onUpdate);
@@ -90,7 +109,7 @@ function setupPolling(requestId: string, onUpdate: (messages: any[]) => void) {
         if (data.success) {
           const formatted = data.messages.map((m: any) => ({
             ...m,
-            createdAtParsed: new Date(m.createdAt)
+            createdAtParsed: new Date(m.createdAt),
           }));
           onUpdate(formatted);
         }
@@ -108,7 +127,12 @@ function setupPolling(requestId: string, onUpdate: (messages: any[]) => void) {
   };
 }
 
-async function sendMessage(requestId: string, senderId: string, senderRole: "user" | "expert", message: string) {
+async function sendMessage(
+  requestId: string,
+  senderId: string,
+  senderRole: "user" | "expert",
+  message: string,
+) {
   if (isConfigured) {
     try {
       await addDoc(collection(db, "expertMessages"), {
@@ -191,13 +215,15 @@ function ExpertReviewPage() {
     }
   };
 
-  const activeRequest = requests.find(
-    (r) => r.status === "pending" || r.status === "accepted"
-  ) || requests[0]; // default to latest request if none is active
+  const activeRequest =
+    requests.find((r) => r.status === "pending" || r.status === "accepted") || requests[0]; // default to latest request if none is active
 
   // Setup real-time listener for the active request's chat
   useEffect(() => {
-    if (!activeRequest || (activeRequest.status !== "accepted" && activeRequest.status !== "completed")) {
+    if (
+      !activeRequest ||
+      (activeRequest.status !== "accepted" && activeRequest.status !== "completed")
+    ) {
       setMessages([]);
       return;
     }
@@ -307,8 +333,8 @@ function ExpertReviewPage() {
         },
         body: JSON.stringify({
           role: "doctor",
-          specialization: "Preventive Cardiology & Lifestyle Medicine"
-        })
+          specialization: "Preventive Cardiology & Lifestyle Medicine",
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -357,7 +383,8 @@ function ExpertReviewPage() {
             Human Expert Review
           </h1>
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed max-w-2xl">
-            Submit your personalized health risk summary and food scan trends to a human medical specialist for clinical feedback and life-plan suggestions.
+            Submit your personalized health risk summary and food scan trends to a human medical
+            specialist for clinical feedback and life-plan suggestions.
           </p>
         </div>
 
@@ -367,7 +394,8 @@ function ExpertReviewPage() {
             <UserCheck className="h-3.5 w-3.5" /> Developer Sandbox
           </div>
           <p className="text-[11px] text-muted-foreground mb-3 leading-snug">
-            Toggle this account as an expert to access the Doctor/Nutritionist view at <code className="bg-muted px-1 py-0.5 rounded text-[10px]">/expert-dashboard</code>.
+            Toggle this account as an expert to access the Doctor/Nutritionist view at{" "}
+            <code className="bg-muted px-1 py-0.5 rounded text-[10px]">/expert-dashboard</code>.
           </p>
           <div className="flex flex-col gap-2">
             <Button
@@ -384,14 +412,18 @@ function ExpertReviewPage() {
               size="xs"
               className="text-[10px] h-7 bg-teal hover:bg-teal/95 font-semibold text-white"
             >
-              <Link to="/expert-dashboard">Open Expert Dashboard <ArrowRight className="ml-1 h-3 w-3" /></Link>
+              <Link to="/expert-dashboard">
+                Open Expert Dashboard <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
             </Button>
           </div>
         </div>
       </div>
 
       {/* Main Container */}
-      {!requests.some(r => r.status === "pending" || r.status === "accepted" || r.status === "completed") ? (
+      {!requests.some(
+        (r) => r.status === "pending" || r.status === "accepted" || r.status === "completed",
+      ) ? (
         /* Case 1: No Request Exists */
         <Card className="border-border bg-surface shadow-card-soft overflow-hidden">
           <div className="h-1.5 bg-gradient-to-r from-teal via-primary to-accent" />
@@ -399,9 +431,12 @@ function ExpertReviewPage() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-teal/10 text-teal mb-4">
               <Stethoscope className="h-7 w-7" />
             </div>
-            <CardTitle className="font-display text-2xl font-bold">Request Professional Review</CardTitle>
+            <CardTitle className="font-display text-2xl font-bold">
+              Request Professional Review
+            </CardTitle>
             <CardDescription className="max-w-md mx-auto mt-2">
-              Share your digital profile, risk assessments, BMI drivers, and scanned foods securely with a clinical expert.
+              Share your digital profile, risk assessments, BMI drivers, and scanned foods securely
+              with a clinical expert.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 px-8 py-4">
@@ -416,7 +451,7 @@ function ExpertReviewPage() {
                 <li>Your scanned food records and nutrition dashboard insights.</li>
               </ul>
             </div>
-            
+
             {/* Safety Disclaimers */}
             <div className="max-w-2xl mx-auto border-t border-border pt-6">
               <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-4 flex gap-3">
@@ -424,10 +459,13 @@ function ExpertReviewPage() {
                 <div className="space-y-1 text-xs">
                   <p className="font-bold text-foreground">Safety & Trust Disclaimer</p>
                   <p className="text-muted-foreground leading-relaxed">
-                    Expert Review is for educational and lifestyle guidance only. It does not replace emergency medical care, diagnostic consulting, or prescription-based medical treatment.
+                    Expert Review is for educational and lifestyle guidance only. It does not
+                    replace emergency medical care, diagnostic consulting, or prescription-based
+                    medical treatment.
                   </p>
                   <p className="text-amber-500/90 font-semibold leading-relaxed mt-1">
-                    Do not share emergency symptoms here. Seek immediate emergency clinical help if you feel unwell.
+                    Do not share emergency symptoms here. Seek immediate emergency clinical help if
+                    you feel unwell.
                   </p>
                 </div>
               </div>
@@ -459,7 +497,9 @@ function ExpertReviewPage() {
             {/* Status Card */}
             <Card className="border-border bg-surface shadow-card-soft overflow-hidden">
               <CardHeader className="pb-4">
-                <CardTitle className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Request Details</CardTitle>
+                <CardTitle className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                  Request Details
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between border-b border-border/50 pb-3">
@@ -484,18 +524,34 @@ function ExpertReviewPage() {
                 {activeRequest.assignedExpertName && (
                   <div className="flex items-center gap-3 border-b border-border/50 pb-3">
                     <Avatar className="h-9 w-9 border border-border">
-                      <AvatarFallback className="bg-teal text-white font-bold text-xs">EX</AvatarFallback>
+                      <AvatarFallback className="bg-teal text-white font-bold text-xs">
+                        EX
+                      </AvatarFallback>
                     </Avatar>
                     <div className="leading-snug">
-                      <p className="text-xs font-bold text-foreground">{activeRequest.assignedExpertName}</p>
+                      <p className="text-xs font-bold text-foreground">
+                        {activeRequest.assignedExpertName}
+                      </p>
                       <p className="text-[10px] text-muted-foreground">Assigned Expert Counselor</p>
                     </div>
                   </div>
                 )}
 
                 <div className="flex flex-col gap-1 text-[11px] text-muted-foreground leading-normal">
-                  <p><strong>Submitted:</strong> {new Date(activeRequest.createdAt).toLocaleDateString()} {new Date(activeRequest.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                  <p><strong>Request ID:</strong> <code className="bg-muted px-1 py-0.5 rounded text-[10px] select-all">{activeRequest.id}</code></p>
+                  <p>
+                    <strong>Submitted:</strong>{" "}
+                    {new Date(activeRequest.createdAt).toLocaleDateString()}{" "}
+                    {new Date(activeRequest.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <p>
+                    <strong>Request ID:</strong>{" "}
+                    <code className="bg-muted px-1 py-0.5 rounded text-[10px] select-all">
+                      {activeRequest.id}
+                    </code>
+                  </p>
                 </div>
 
                 {isPending && (
@@ -519,28 +575,60 @@ function ExpertReviewPage() {
             {/* Profile Snapshot Preview */}
             <Card className="border-border bg-surface shadow-card-soft">
               <CardHeader className="pb-3">
-                <CardTitle className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Snapshot Shared</CardTitle>
+                <CardTitle className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                  Snapshot Shared
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-xs leading-normal">
                 <div className="grid grid-cols-2 gap-2 bg-surface-muted/30 p-2.5 rounded-lg border border-border/60 font-mono text-[10px]">
-                  <div>Age: <span className="font-bold text-foreground">{activeRequest.profileSnapshot?.age}</span></div>
-                  <div>Gender: <span className="font-bold text-foreground capitalize">{activeRequest.profileSnapshot?.gender}</span></div>
-                  <div>BMI: <span className="font-bold text-foreground">{activeRequest.profileSnapshot?.bmi?.toFixed(1)}</span></div>
-                  <div>Weight: <span className="font-bold text-foreground">{activeRequest.profileSnapshot?.weight} kg</span></div>
+                  <div>
+                    Age:{" "}
+                    <span className="font-bold text-foreground">
+                      {activeRequest.profileSnapshot?.age}
+                    </span>
+                  </div>
+                  <div>
+                    Gender:{" "}
+                    <span className="font-bold text-foreground capitalize">
+                      {activeRequest.profileSnapshot?.gender}
+                    </span>
+                  </div>
+                  <div>
+                    BMI:{" "}
+                    <span className="font-bold text-foreground">
+                      {activeRequest.profileSnapshot?.bmi?.toFixed(1)}
+                    </span>
+                  </div>
+                  <div>
+                    Weight:{" "}
+                    <span className="font-bold text-foreground">
+                      {activeRequest.profileSnapshot?.weight} kg
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 border-t border-border/40 pt-3">
-                  <p className="font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Lifestyle:</p>
+                  <p className="font-bold text-[10px] uppercase text-muted-foreground tracking-wider">
+                    Lifestyle:
+                  </p>
                   <div className="flex flex-wrap gap-1">
-                    <Badge variant="outline" className="text-[10px] py-0">{activeRequest.profileSnapshot?.lifestyle?.smoking} smoking</Badge>
-                    <Badge variant="outline" className="text-[10px] py-0">{activeRequest.profileSnapshot?.lifestyle?.exercise} exercise</Badge>
+                    <Badge variant="outline" className="text-[10px] py-0">
+                      {activeRequest.profileSnapshot?.lifestyle?.smoking} smoking
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] py-0">
+                      {activeRequest.profileSnapshot?.lifestyle?.exercise} exercise
+                    </Badge>
                   </div>
                 </div>
 
                 {activeRequest.profileSnapshot?.symptoms && (
                   <div className="space-y-1 border-t border-border/40 pt-3">
-                    <p className="font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Symptoms:</p>
-                    <p className="text-muted-foreground italic text-[11px] truncate">{activeRequest.profileSnapshot.symptoms}</p>
+                    <p className="font-bold text-[10px] uppercase text-muted-foreground tracking-wider">
+                      Symptoms:
+                    </p>
+                    <p className="text-muted-foreground italic text-[11px] truncate">
+                      {activeRequest.profileSnapshot.symptoms}
+                    </p>
                   </div>
                 )}
               </CardContent>
@@ -556,12 +644,16 @@ function ExpertReviewPage() {
                 </div>
                 <h3 className="font-display text-lg font-bold">Review Request Pending</h3>
                 <p className="text-xs text-muted-foreground mt-2 max-w-sm leading-relaxed">
-                  An expert practitioner will review your clinical risk drivers, action plans, and health charts shortly. Chat will unlock automatically as soon as they accept.
+                  An expert practitioner will review your clinical risk drivers, action plans, and
+                  health charts shortly. Chat will unlock automatically as soon as they accept.
                 </p>
                 <div className="mt-6 border-t border-border/50 pt-6 max-w-sm text-left">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Note:</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Note:
+                  </p>
                   <p className="text-[10px] text-muted-foreground leading-normal mt-1">
-                    Your assessment results are securely locked in the state. Once assigned, you can message the physician or nutritionist directly below.
+                    Your assessment results are securely locked in the state. Once assigned, you can
+                    message the physician or nutritionist directly below.
                   </p>
                 </div>
               </Card>
@@ -594,7 +686,10 @@ function ExpertReviewPage() {
                     <div className="h-full flex flex-col items-center justify-center text-center text-xs text-muted-foreground p-6">
                       <MessageSquare className="h-8 w-8 text-teal/40 mb-2" />
                       <p className="font-semibold text-foreground">Welcome to the Expert Chat</p>
-                      <p className="max-w-xs mt-1 text-[11px]">The expert has accepted your request. Send a message to start receiving guidance.</p>
+                      <p className="max-w-xs mt-1 text-[11px]">
+                        The expert has accepted your request. Send a message to start receiving
+                        guidance.
+                      </p>
                     </div>
                   ) : (
                     messages.map((msg) => {
@@ -607,7 +702,9 @@ function ExpertReviewPage() {
                           }`}
                         >
                           <Avatar className="h-6 w-6 border border-border/50 shrink-0">
-                            <AvatarFallback className={`text-[9px] font-bold ${isMe ? "bg-primary text-primary-foreground" : "bg-teal text-white"}`}>
+                            <AvatarFallback
+                              className={`text-[9px] font-bold ${isMe ? "bg-primary text-primary-foreground" : "bg-teal text-white"}`}
+                            >
                               {isMe ? "ME" : "EX"}
                             </AvatarFallback>
                           </Avatar>
@@ -621,7 +718,10 @@ function ExpertReviewPage() {
                             <p className="whitespace-pre-wrap">{msg.message}</p>
                             <span className="block text-[8px] opacity-75 mt-1 font-mono text-right">
                               {msg.createdAtParsed
-                                ? msg.createdAtParsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                ? msg.createdAtParsed.toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
                                 : ""}
                             </span>
                           </div>
