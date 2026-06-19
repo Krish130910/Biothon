@@ -282,6 +282,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Update local state copy of User to trigger displayName
       setUser({ ...credential.user, displayName: name });
 
+      // Create/update Firestore user document immediately to prevent race condition write of displayName as null
+      if (isConfigured) {
+        const userDocRef = doc(db, "users", credential.user.uid);
+        await setDoc(
+          userDocRef,
+          {
+            uid: credential.user.uid,
+            email: credential.user.email,
+            displayName: name,
+            hasCompletedAssessment: false,
+            createdAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+        setHasCompletedAssessment(false);
+      }
+
       // Create Initial backend profile if we have one
       if (isConfigured) {
         const idToken = await credential.user.getIdToken();

@@ -48,6 +48,7 @@ export const Route = createFileRoute("/_app/expert-review")({
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // Real-time listener subscription helper
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function subscribeToMessages(requestId: string, onUpdate: (messages: any[]) => void) {
   if (isConfigured) {
     try {
@@ -92,6 +93,7 @@ function subscribeToMessages(requestId: string, onUpdate: (messages: any[]) => v
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function setupPolling(requestId: string, onUpdate: (messages: any[]) => void) {
   let active = true;
   const poll = async () => {
@@ -108,6 +110,7 @@ function setupPolling(requestId: string, onUpdate: (messages: any[]) => void) {
       if (res.ok && active) {
         const data = await res.json();
         if (data.success) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const formatted = data.messages.map((m: any) => ({
             ...m,
             createdAtParsed: new Date(m.createdAt),
@@ -174,12 +177,14 @@ function ExpertReviewPage() {
   const [result] = useHealthResult();
   const navigate = useNavigate();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [requests, setRequests] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
   // Chat State
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessageText, setNewMessageText] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);

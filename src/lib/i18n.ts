@@ -8,7 +8,7 @@ export const languages: { code: Lang; label: string }[] = [
 
 type Dict = Record<string, { en: string; hi: string; gu: string }>;
 
-export const t: Dict = {
+export const translations: Dict = {
   appName: { en: "HealthGuard AI", hi: "हेल्थगार्ड एआई", gu: "હેલ્થગાર્ડ એઆઈ" },
   tagline: {
     en: "AI-powered personal health risk assessment",
@@ -206,16 +206,283 @@ export const t: Dict = {
     hi: "कल्याण उपकरण",
     gu: "વેલનેસ ટૂલ",
   },
+  homeTitle: {
+    en: "Identify your chronic health risks in 10 minutes.",
+    hi: "10 मिनट में अपने पुराने स्वास्थ्य जोखिमों की पहचान करें।",
+    gu: "10 મિનિટમાં તમારા ક્રોનિક હેલ્થ જોખમોને ઓળખો.",
+  },
+  homeSubtitle: {
+    en: "Understand your risk for Type 2 Diabetes, Hypertension, and Heart Disease using simple, everyday indicators. Get personalized, easy-to-follow lifestyle guidance to protect your health.",
+    hi: "सरल, रोज़मर्रा के संकेतकों का उपयोग करके टाइप 2 मधुमेह, उच्च रक्तचाप और हृदय रोग के अपने जोखिम को समझें। अपने स्वास्थ्य की रक्षा के लिए व्यक्तिगत, पालन करने में आसान जीवनशैली मार्गदर्शन प्राप्त करें।",
+    gu: "સરળ, રોજિંદા સૂચકાંકોનો ઉપયોગ કરીને ટાઇપ 2 ડાયાબિટીસ, હાયપરટેન્શન અને હૃદય રોગના તમારા જોખમને સમજો. તમારા સ્વાસ્થ્યને સુરક્ષિત રાખવા માટે વ્યક્તિગત, સરળ-થી-અનુસરણ જીવનશૈલી માર્ગદર્શન મેળવો.",
+  },
+  startAssessment: {
+    en: "Start Assessment",
+    hi: "मूल्यांकन शुरू करें",
+    gu: "મૂલ્યાંકન શરૂ કરો",
+  },
+  learnMore: {
+    en: "Learn More",
+    hi: "अधिक जानें",
+    gu: "વધુ જાણો",
+  },
+  noMedicalRecords: {
+    en: "No medical records required",
+    hi: "किसी मेडिकल रिकॉर्ड की आवश्यकता नहीं",
+    gu: "કોई મેડિકલ રેકોર્ડની જરૂર નથી",
+  },
+  privateProcessing: {
+    en: "Private on-device processing",
+    hi: "निजी ऑन-डिवाइस प्रोसेसिंग",
+    gu: "ખાનગી ઓન-ડિવાઈસ પ્રોસેસિંગ",
+  },
+  whyHealthGuard: {
+    en: "Why HealthGuard?",
+    hi: "हेल्थगार्ड क्यों?",
+    gu: "હેલ્થગાર્ડ શા માટે?",
+  },
+  healthAssistant: {
+    en: "Your Health Assistant",
+    hi: "आपका स्वास्थ्य सहायक",
+    gu: "તમારા હેલ્થ આસિસ્ટન્ટ",
+  },
+  healthAssistantDesc: {
+    en: "HealthGuard provides an independent, on-device assessment portal that helps you map metabolic and cardiovascular risk factors before symptoms manifest. Our platform offers clear, clinical-guideline-aligned guidance and generative diet and wellness plans tailored to your regional language.",
+    hi: "हेल्थगार्ड एक स्वतंत्र, ऑन-डिवाइस मूल्यांकन पोर्टल प्रदान करता है जो लक्षण प्रकट होने से पहले चयापचय और हृदय संबंधी जोखिम कारकों को मैप करने में आपकी सहायता करता है। हमारा मंच स्पष्ट, नैदानिक-दिशानिर्देश-संरेखित मार्गदर्शन और आपकी क्षेत्रीय भाषा के अनुरूप जेनेरेटिव आहार और कल्याण योजनाएं प्रदान करता है।",
+    gu: "હેલ્થગાર્ડ એક સ્વતંત્ર, ઓન-ડિવાઈસ મૂલ્યાંકન પોર્ટલ પ્રદાન કરે છે જે લક્ષણો દેખાય તે પહેલાં મેટાબોલિક અને રક્તવાહિની જોખમ પરિબળોને મેપ કરવામાં તમારી મદદ કરે છે. અમારું પ્લેટફોર્મ તમારી પ્રાદેશિક ભાષાને અનુરૂપ સ્પષ્ટ, ક્લિનિકલ-માર્ગદર્શિકા-સંરેખિત માર્ગદર્શન અને જનરેટિવ આહાર અને સુખાકારી યોજનાઓ પ્રદાન કરે છે.",
+  },
+  howItHelps: {
+    en: "How It Helps You",
+    hi: "यह आपकी कैसे मदद करता है",
+    gu: "તે તમને કેવી રીતે મદદ કરે છે",
+  },
+  threeStepExplanation: {
+    en: "A simple 3-step explanation",
+    hi: "एक सरल 3-चरण स्पष्टीकरण",
+    gu: "એક સરળ 3-પગલાની સમજૂતી",
+  },
+  threeStepDesc: {
+    en: "HealthGuard is designed to be simple, plain-language, and easy to use.",
+    hi: "हेल्थगार्ड को सरल, स्पष्ट भाषा और उपयोग में आसान बनाने के लिए डिज़ाइन किया गया है।",
+    gu: "હેલ્થગાર્ડને સરળ, સાદી ભાષા અને ઉપયોગમાં સરળ બનાવવા માટે ડિઝાઇન કરવામાં આવ્યું છે.",
+  },
+  step1Title: {
+    en: "Complete a health assessment",
+    hi: "स्वास्थ्य मूल्यांकन पूरा करें",
+    gu: "આરોગ્ય મૂલ્યાંકન પૂર્ણ કરો",
+  },
+  step1Desc: {
+    en: "Fill out a simple, 10-minute questionnaire about your everyday habits, nutrition, physical activity, and family health history.",
+    hi: "अपनी रोज़मर्रा की आदतों, पोषण, शारीरिक गतिविधि और पारिवारिक स्वास्थ्य इतिहास के बारे में एक सरल, 10 मिनट की प्रश्नावली भरें।",
+    gu: "તમારી રોજિંદી આદતો, પોષણ, શારીરિક પ્રવૃત્તિ અને કૌટુંબિક સ્વાસ્થ્ય ઇતિહાસ વિશે એક સરળ, 10-મિનિટની પ્રશ્નાવલી ભરો.",
+  },
+  step2Title: {
+    en: "Analyze lifestyle risk factors",
+    hi: "जीवनशैली के जोखिम कारकों का विश्लेषण करें",
+    gu: "જીવનશૈલીના જોખમ પરિબળોનું વિશ્લેષણ કરો",
+  },
+  step2Desc: {
+    en: "Get a clear, plain-language summary showing your potential risk scores and what they mean in everyday terms.",
+    hi: "संभावित जोखिम स्कोर और रोज़मर्रा के शब्दों में उनके अर्थ दिखाने वाला एक स्पष्ट, सरल-भाषा सारांश प्राप्त करें।",
+    gu: "સંભવિત જોખમ સ્કોર્સ અને રોજિંદા શબ્દોમાં તેનો અર્થ શું થાય છે તે દર્શાવતો સ્પષ્ટ, સાદી-ભાષાનો સારાંશ મેળવો.",
+  },
+  step3Title: {
+    en: "Receive personalized prevention guidance",
+    hi: "व्यक्तिगत बचाव मार्गदर्शन प्राप्त करें",
+    gu: "વ્યક્તિગત નિવારણ માર્ગદર્શન મેળવો",
+  },
+  step3Desc: {
+    en: "Get an AI-designed weekly meal schedule and activity guideline customized specifically to fit your lifestyle.",
+    hi: "अपनी जीवनशैली के अनुकूल विशेष रूप से तैयार किया गया एआई-डिज़ाइन किया गया साप्ताहिक भोजन कार्यक्रम और गतिविधि दिशानिर्देश प्राप्त करें।",
+    gu: "તમારી જીવનશૈલીને બંધબેસતા ખાસ કસ્ટમાઇઝ્ડ એઆઇ-ડિઝાઇન કરેલ સાપ્તાહિક ભોજન શેડ્યૂલ અને પ્રવૃત્તિ માર્ગદર્શિકા મેળવો.",
+  },
+  publicHealthEvidence: {
+    en: "Public Health Evidence",
+    hi: "सार्वजनिक स्वास्थ्य साक्ष्य",
+    gu: "જાહેર આરોગ્ય પુરાવા",
+  },
+  whyPreventionMatters: {
+    en: "Why Chronic Disease Prevention Matters",
+    hi: "क्रोनिक बीमारी से बचाव क्यों मायने रखता है",
+    gu: "ક્રોનિક ડિસીઝ નિવારણ શા માટે મહત્વનું છે",
+  },
+  whyPreventionMattersDesc: {
+    en: "Metabolic and cardiovascular conditions develop gradually. Public health evidence shows that identifying risk factors early enables lifestyle modifications that significantly reduce disease onset.",
+    hi: "चयापचय और हृदय संबंधी स्थितियां धीरे-धीरे विकसित होती हैं। सार्वजनिक स्वास्थ्य साक्ष्य बताते हैं कि जोखिम कारकों की जल्दी पहचान करने से जीवनशैली में बदलाव संभव होता है जो बीमारी की शुरुआत को काफी कम करता है।",
+    gu: "મેટાબોલિક અને રક્તવાહિની પરિસ્થિતિઓ ધીમે ધીમે વિકસે છે. જાહેર આરોગ્ય પુરાવા દર્શાવે છે કે જોખમી પરિબળોને વહેલા ઓળખવાથી જીવનશૈલીમાં ફેરફાર થાય છે જે રોગની શરૂઆતને નોંધપાત્ર રીતે ઘટાડે છે.",
+  },
+  preventableHeartConditions: {
+    en: "Preventable Heart Conditions",
+    hi: "रोके जा सकने वाले हृदय रोग",
+    gu: "નિવારી શકાય તેવી હૃદયની સ્થિતિ",
+  },
+  preventableHeartConditionsDesc: {
+    en: "The World Health Organization (WHO) estimates that up to 80% of premature heart attacks and strokes are preventable through risk identification, dietary adjustments, and regular exercise.",
+    hi: "विश्व स्वास्थ्य संगठन (डब्ल्यूएचओ) का अनुमान है कि 80% तक असामयिक दिल के दौरे और स्ट्रोक को जोखिम की पहचान, आहार समायोजन और नियमित व्यायाम के माध्यम से रोका जा सकता है।",
+    gu: "વર્લ્ડ હેલ્થ ઓર્ગેનાઈઝેશન (WHO) અંદાજ લગાવે છે કે 80% સુધી અકાળ હાર્ટ એટેક અને સ્ટ્રોક જોખમ ઓળખ, આહાર ગોઠવણો અને નિયમિત કસરત દ્વારા નિવારી શકાય છે.",
+  },
+  undiagnosedHypertension: {
+    en: "Undiagnosed Hypertension",
+    hi: "अनिर्धारित उच्च रक्तचाप",
+    gu: "અનિવાર્ય હાયપરટેન્શન",
+  },
+  undiagnosedHypertensionDesc: {
+    en: "According to WHO reports, approximately 46% of adults with hypertension are unaware they have high blood pressure. Early detection and habit tracking are essential first steps for cardiovascular care.",
+    hi: "डब्ल्यूएचओ की रिपोर्टों के अनुसार, उच्च रक्तचाप से पीड़ित लगभग 46% वयस्क इस बात से अनजान हैं कि उन्हें उच्च रक्तचाप है। हृदय की देखभाल के लिए शीघ्र पता लगाना और आदत की ट्रैकिंग आवश्यक पहला कदम है।",
+    gu: "WHOના અહેવાલો અનુસાર, હાયપરટેન્શન ધરાવતા આશરે 46% પુખ્તો અજાણ છે કે તેમને હાઈ બ્લડ પ્રેશર છે. કાર્ડિયોવાસ્ક્યુલર કેર માટે પ્રારંભિક શોધ અને આદત ટ્રેકિંગ એ પ્રથમ પગલાં છે.",
+  },
+  reducedDiabetesRisk: {
+    en: "Reduced Diabetes Risk",
+    hi: "मधुमेह के जोखिम में कमी",
+    gu: "ડાયાબિટીસ જોખમમાં ઘટાડો",
+  },
+  reducedDiabetesRiskDesc: {
+    en: "Clinical research from the landmark Diabetes Prevention Program (DPP) demonstrates that structured lifestyle changes in diet and physical activity can reduce the risk of progressing to type 2 diabetes by 58%.",
+    hi: "ऐतिहासिक मधुमेह निवारण कार्यक्रम (डीपीपी) के नैदानिक ​​अनुसंधान से पता चलता है कि आहार और शारीरिक गतिविधि में संरचित जीवनशैली में बदलाव टाइप 2 मधुमेह के बढ़ने के जोखिम को 58% तक कम कर सकते हैं।",
+    gu: "ઐતિહાસિક ડાયાબિટીસ પ્રિવેન્શન પ્રોગ્રામ (DPP) ના ક્લિનિકલ સંશોધન દર્શાવે છે કે આહાર અને શારીરિક પ્રવૃત્તિમાં માળખાગત જીવનશૈલીમાં ફેરફાર પ્રકાર 2 ડાયાબિટીસમાં પ્રગતિના જોખમને 58% ઘટાડી શકે છે.",
+  },
+  assessYourRiskMarkers: {
+    en: "Assess Your Risk Markers",
+    hi: "अपने जोखिम संकेतकों का आकलन करें",
+    gu: "તમારા જોખમ સૂચકાંકોનું મૂલ્યાંકન કરો",
+  },
+  assessYourRiskMarkersDesc: {
+    en: "HealthGuard offers an educational, on-device questionnaire designed to evaluate your risk factors for these conditions and generate personalized guidelines. The assessment is private, free, and takes under 10 minutes.",
+    hi: "हेल्थगार्ड इन स्थितियों के लिए आपके जोखिम कारकों का मूल्यांकन करने और व्यक्तिगत दिशानिर्देश उत्पन्न करने के लिए डिज़ाइन की गई एक शैक्षिक, ऑन-डिवाइस प्रश्नावली प्रदान करता है। मूल्यांकन निजी, मुफ़्त है और इसमें 10 मिनट से कम समय लगता है।",
+    gu: "હેલ્થગાર્ડ આ પરિસ્થિતિઓ માટે તમારા જોખમી પરિબળોનું મૂલ્યાંકન કરવા અને વ્યક્તિગત માર્ગદર્શિકા જનરેટ કરવા માટે રચાયેલ શૈક્ષણિક, ઓન-ડિવાઈસ પ્રશ્નાવલી આપે છે. મૂલ્યાંકન ખાનગી, મફત છે અને 10 મિનિટથી ઓછો સમય લે છે.",
+  },
+  startHealthAssessment: {
+    en: "Start Health Assessment",
+    hi: "स्वास्थ्य मूल्यांकन शुरू करें",
+    gu: "આરોગ્ય મૂલ્યાંકન શરૂ કરો",
+  },
+  readMethodology: {
+    en: "Read Methodology",
+    hi: "पद्धति पढ़ें",
+    gu: "પદ્ધતિ વાંચો",
+  },
+  backToDashboard: {
+    en: "Back to Dashboard",
+    hi: "डैशबोर्ड पर वापस जाएं",
+    gu: "ડેશબોર્ડ પર પાછા જાઓ",
+  },
+  viewReport: {
+    en: "View Report",
+    hi: "रिपोर्ट देखें",
+    gu: "રિપોર્ટ જુઓ",
+  },
+  assessmentRequired: {
+    en: "Assessment Required",
+    hi: "मूल्यांकन आवश्यक",
+    gu: "મૂલ્યાંકન જરૂરી",
+  },
+  pleaseCompleteAssessment: {
+    en: "Please complete your initial health assessment before opening the page.",
+    hi: "कृपया पेज खोलने से पहले अपना प्रारंभिक स्वास्थ्य मूल्यांकन पूरा करें।",
+    gu: "કૃપા કરીને પૃષ્ઠ ખોલતા પહેલા તમારું પ્રારંભિક આરોગ્ય મૂલ્યાંકન પૂર્ણ કરો.",
+  },
+  thisWeeksTopActions: {
+    en: "This Week's Top Actions",
+    hi: "इस सप्ताह की मुख्य कार्रवाइयाँ",
+    gu: "આ અઠવાડિયાની ટોચની ક્રિયાઓ",
+  },
+  activePlan: {
+    en: "Active Plan",
+    hi: "सक्रिय योजना",
+    gu: "સક્રિય યોજના",
+  },
+  personalizedActionPlanDesc: {
+    en: "Your personalized list of highest impact habits, custom regional diet guides, and physical exercise workouts for this week.",
+    hi: "इस सप्ताह के लिए आपके उच्चतम प्रभाव वाली आदतों, कस्टम क्षेत्रीय आहार गाइड और शारीरिक व्यायाम वर्कआउट की व्यक्तिगत सूची।",
+    gu: "આ અઠવાડિયા માટે તમારા સર્વોચ્ચ અસરવાળી આદતો, કસ્ટમ પ્રાદેશિક આહાર માર્ગદર્શિકાઓ અને શારીરિક કસરત વર્કઆઉટ્સની વ્યક્તિગત સૂચિ.",
+  },
+  startInitialAssessment: {
+    en: "Start Initial Assessment",
+    hi: "प्रारंभिक मूल्यांकन शुरू करें",
+    gu: "પ્રારંભિક મૂલ્યાંકન શરૂ કરો",
+  },
+  reassessHealthProfile: {
+    en: "Reassess Health Profile",
+    hi: "स्वास्थ्य प्रोफ़ाइल का पुनः आकलन करें",
+    gu: "આરોગ્ય પ્રોફાઇલનું પુનઃ મૂલ્યાંકન કરો",
+  },
+  onboardingStatus: {
+    en: "Onboarding Status",
+    hi: "ऑनबोर्डिंग स्थिति",
+    gu: "ઓનબોર્ડિંગ સ્થિતિ",
+  },
+  healthProfileOnboarding: {
+    en: "Health Profile Onboarding",
+    hi: "स्वास्थ्य प्रोफ़ाइल ऑनबोर्डिंग",
+    gu: "આરોગ્ય પ્રોફાઇલ ઓનબોર્ડિંગ",
+  },
+  onboardingStatusDesc: {
+    en: "Your assessment is used to calculate risk scores and personalize your action plan.",
+    hi: "आपके मूल्यांकन का उपयोग जोखिम स्कोर की गणना करने और आपकी कार्य योजना को व्यक्तिगत बनाने के लिए किया जाता है।",
+    gu: "તમારા મૂલ્યાંકનનો ઉપયોગ જોખમ સ્કોર્સની ગણતરી કરવા અને તમારી એક્શન પ્લાનને વ્યક્તિગત કરવા માટે થાય છે.",
+  },
+  quickActions: {
+    en: "Quick Actions",
+    hi: "त्वरित कार्रवाइयाँ",
+    gu: "ઝડપી ક્રિયાઓ",
+  },
+  signOut: {
+    en: "Sign Out",
+    hi: "साइन आउट",
+    gu: "સાઇન આઉટ",
+  },
+  healthPlatform: {
+    en: "Health Platform",
+    hi: "स्वास्थ्य मंच",
+    gu: "હેલ્થ પ્લેટફોર્મ",
+  },
+  resources: {
+    en: "Resources",
+    hi: "संसाधन",
+    gu: "રિસોર્સિસ",
+  },
+  aboutDesc: {
+    en: "Learn more about our methodology and evidence-based medicine.",
+    hi: "हमारी कार्यप्रणाली और साक्ष्य-आधारित चिकित्सा के बारे में अधिक जानें।",
+    gu: "અમારી પદ્ધતિ અને પુરાવા-આધારિત દવા વિશે વધુ જાણો.",
+  },
 };
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
+import { useLanguageContext } from "@/contexts/language-context";
 
-export function tr(key: keyof typeof t, lang: Lang): string {
-  return t[key]?.[lang] ?? t[key]?.en ?? key;
+export function t(key: keyof typeof translations, lang?: Lang): string {
+  let activeLang: Lang = "en";
+  try {
+    const raw = localStorage.getItem("hg.lang.v1");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed === "en" || parsed === "hi" || parsed === "gu") {
+          activeLang = parsed as Lang;
+        }
+      } catch {
+        if (raw === "en" || raw === "hi" || raw === "gu") {
+          activeLang = raw as Lang;
+        }
+      }
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+
+  const currentLang = lang || activeLang;
+  return translations[key]?.[currentLang] ?? translations[key]?.en ?? key;
 }
 
+export const tr = t;
+
 export function useLanguage(): Lang {
-  const getStoredLang = (): Lang => {
+  try {
+    const context = useLanguageContext();
+    return context.language;
+  } catch {
+    // Fallback if context is not loaded
     const raw = localStorage.getItem("hg.lang.v1");
     if (!raw) return "en";
     try {
@@ -229,25 +496,5 @@ export function useLanguage(): Lang {
       }
     }
     return "en";
-  };
-
-  const [language, setLanguage] = useState<Lang>(getStoredLang);
-
-  useEffect(() => {
-    const sync = () => {
-      setLanguage(getStoredLang());
-    };
-
-    window.addEventListener("hg:language-change", sync);
-    window.addEventListener("hg:store", sync);
-    window.addEventListener("storage", sync);
-
-    return () => {
-      window.removeEventListener("hg:language-change", sync);
-      window.removeEventListener("hg:store", sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
-
-  return language;
+  }
 }

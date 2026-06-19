@@ -110,7 +110,7 @@ function AssessmentPage() {
         const exists = userSnap.exists();
         const userData = exists ? userSnap.data() : null;
 
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           uid: auth.currentUser.uid,
           email: auth.currentUser.email,
           displayName: auth.currentUser.displayName || null,

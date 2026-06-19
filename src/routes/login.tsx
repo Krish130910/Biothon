@@ -23,7 +23,8 @@ function LoginPage() {
     document.title = "Sign In — HealthGuard";
   }, []);
 
-  const { loginWithEmail, loginWithGoogle, user, loading, syncing, hasCompletedAssessment } = useAuth();
+  const { loginWithEmail, loginWithGoogle, user, loading, syncing, hasCompletedAssessment } =
+    useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

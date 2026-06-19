@@ -27,7 +27,7 @@ function AppLayout() {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate({ to: "/login" });
+      navigate({ to: "/" });
     }
   }, [user, loading, navigate]);
 

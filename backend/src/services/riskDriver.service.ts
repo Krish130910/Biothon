@@ -22,7 +22,7 @@ export class RiskDriverService {
 
     const totalScore = riskFactors.reduce((acc, f) => acc + f.score, 0);
 
-    let contributions = riskFactors.map((f) => {
+    const contributions = riskFactors.map((f) => {
       return {
         key: f.factor,
         contribution: totalScore > 0 ? Math.round((f.score / totalScore) * 100) : 0,

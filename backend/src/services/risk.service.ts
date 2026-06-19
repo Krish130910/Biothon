@@ -551,7 +551,7 @@ export class RiskService {
         : `Your Hypertension Risk (${scores.hypertension}%) indicates normal baseline vascular markers.`;
 
     // 2. Diet plan builder
-    let dietParts = ["Dietary Recommendation Summary:\n"];
+    const dietParts = ["Dietary Recommendation Summary:\n"];
     if (scores.diabetes > 50) {
       dietParts.push(
         "- Choose complex carbohydrates (oats, brown rice, whole wheat) over refined flour.\n- Include high-fiber pulses, legumes, and lean proteins in every meal.\n- Minimize processed sugar, sweet snacks, and soda intakes.",
@@ -569,7 +569,7 @@ export class RiskService {
     }
 
     // 3. Exercise plan builder
-    let exParts = ["Exercise Routine Guidelines:\n"];
+    const exParts = ["Exercise Routine Guidelines:\n"];
     if (profile.exercise === "none" || profile.exercise === "light") {
       exParts.push(
         "- Start with a daily 15-20 minute brisk walk.\n- Incorporate gentle mobility, joint rotations, and calf stretches.\n- Aim for a target of 150 minutes of light cardio per week.",
@@ -581,7 +581,7 @@ export class RiskService {
     }
 
     // 4. Prevention tips
-    let prevTips = ["Key Preventive Health Targets:\n"];
+    const prevTips = ["Key Preventive Health Targets:\n"];
     if (profile.smoking === "current") {
       prevTips.push(
         "- Seek counseling or nicotine replacement therapy to quit smoking completely.\n",

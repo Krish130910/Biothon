@@ -1,5 +1,5 @@
 import { Globe, Check, ChevronDown } from "lucide-react";
-import { useLangPref } from "@/lib/health-store";
+import { useLanguageContext } from "@/contexts/language-context";
 import { languages, type Lang } from "@/lib/i18n";
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ const shortLabel: Record<Lang, string> = { en: "EN", hi: "हि", gu: "ગુ" 
 const fullLabel: Record<Lang, string> = { en: "English", hi: "Hindi", gu: "Gujarati" };
 
 export function LanguageSwitcher({ variant = "header" }: { variant?: "header" | "compact" }) {
-  const [lang, setLang] = useLangPref();
+  const { language: lang, setLanguage: setLang } = useLanguageContext();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -42,7 +42,6 @@ export function LanguageSwitcher({ variant = "header" }: { variant?: "header" | 
               key={l.code}
               onSelect={() => {
                 setLang(l.code as Lang);
-                window.dispatchEvent(new Event("hg:language-change"));
               }}
               className="flex items-center justify-between gap-2"
             >
