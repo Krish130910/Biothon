@@ -9,7 +9,9 @@ import {
   ArrowRight,
   Plus,
   Loader2,
+  Brain,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useProfile, useHealthResult, useHistory } from "@/lib/health-store";
 import { useLanguage, tr } from "@/lib/i18n";
@@ -79,6 +81,50 @@ function ProgressPage() {
 
   const [logWeightVal, setLogWeightVal] = useState("");
   const [logging, setLogging] = useState(false);
+
+  interface PredictionData {
+    status: "insufficient_data" | "ready";
+    message?: string;
+    trend?: "improving" | "stable" | "worsening";
+    predictedRisk30Days?: number;
+    predictedRisk90Days?: number;
+    confidence?: number;
+    reasons?: string[];
+  }
+
+  const [prediction, setPrediction] = useState<PredictionData | null>(null);
+  const [predLoading, setPredLoading] = useState(false);
+
+  useEffect(() => {
+    if (!profile || !result) return;
+
+    const fetchPrediction = async () => {
+      setPredLoading(true);
+      try {
+        let idToken = "mock-uid-guest";
+        if (auth.currentUser) {
+          idToken = await auth.currentUser.getIdToken();
+        }
+        const resp = await fetch(`${API_URL}/api/progress/review`, {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.success) {
+            setPrediction(data.prediction || null);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch progress prediction:", err);
+      } finally {
+        setPredLoading(false);
+      }
+    };
+
+    fetchPrediction();
+  }, [profile, result, history]);
 
   useEffect(() => {
     document.title = tr("progressTracker", currentLang) + " — " + tr("appName", currentLang);
@@ -279,6 +325,99 @@ function ProgressPage() {
         </Card>
       ) : (
         <div className="space-y-8">
+          {/* Risk Projections & Predictions Section */}
+          <div className="space-y-4">
+            <h2 className="font-display text-base font-bold text-foreground flex items-center gap-2">
+              <Brain className="h-4.5 w-4.5 text-teal animate-pulse-slow" />
+              Projections & Trend Forecast
+            </h2>
+
+            {predLoading ? (
+              <Card className="border-border bg-surface shadow-card-soft p-8 flex items-center justify-center min-h-[160px]">
+                <Loader2 className="h-8 w-8 animate-spin text-teal" />
+              </Card>
+            ) : prediction && prediction.status === "ready" ? (
+              <div className="grid gap-6 md:grid-cols-3">
+                {/* Trend & Confidence Card */}
+                <Card className="border-border bg-surface shadow-card-soft flex flex-col justify-between p-5">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider font-mono">
+                      Current Forecast Trend
+                    </span>
+                    <h3 className="font-display text-2xl font-bold flex items-center gap-2 capitalize">
+                      {prediction.trend === "improving" ? (
+                        <span className="text-green-500">Improving ▼</span>
+                      ) : prediction.trend === "worsening" ? (
+                        <span className="text-red-500">Worsening ▲</span>
+                      ) : (
+                        <span className="text-amber-500">Stable ▬</span>
+                      )}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Confidence rating: {Math.round((prediction.confidence || 0) * 100)}%
+                    </p>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-2.5 mt-4">
+                    *Estimated risk category. For awareness & lifestyle guidance only.
+                  </div>
+                </Card>
+
+                {/* Target Risk Scores Card */}
+                <Card className="border-border bg-surface shadow-card-soft md:col-span-2 p-5 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider font-mono">
+                        Projected Risk (30 Days)
+                      </span>
+                      <div className="font-display text-3xl font-extrabold text-foreground">
+                        {prediction.predictedRisk30Days}%
+                      </div>
+                      <Progress
+                        value={prediction.predictedRisk30Days}
+                        className="h-2 [&>div]:bg-teal"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider font-mono">
+                        Projected Risk (90 Days)
+                      </span>
+                      <div className="font-display text-3xl font-extrabold text-foreground">
+                        {prediction.predictedRisk90Days}%
+                      </div>
+                      <Progress
+                        value={prediction.predictedRisk90Days}
+                        className="h-2 [&>div]:bg-teal"
+                      />
+                    </div>
+                  </div>
+
+                  {prediction.reasons && prediction.reasons.length > 0 && (
+                    <div className="rounded-lg bg-accent/15 border border-border/40 p-3.5 space-y-1.5 text-left">
+                      <span className="text-[9px] uppercase font-bold text-teal tracking-wider font-mono">
+                        Predictive Insights
+                      </span>
+                      <ul className="list-disc pl-3 text-[11px] text-foreground/80 space-y-1">
+                        {prediction.reasons.map((reason, idx) => (
+                          <li key={idx}>{reason}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </Card>
+              </div>
+            ) : (
+              /* Empty state for insufficient data */
+              <Card className="border-border border-dashed bg-surface shadow-card-soft p-8 text-center flex flex-col items-center justify-center min-h-[160px]">
+                <TrendingDown className="h-8 w-8 text-teal/40 mb-2" />
+                <h3 className="font-display text-xs font-bold text-foreground">
+                  Projections Unavailable
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-1 max-w-xs leading-relaxed">
+                  Add more progress logs to unlock prediction. (Requires at least 3 logs).
+                </p>
+              </Card>
+            )}
+          </div>
           {/* Charts Grid */}
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Weight Chart */}

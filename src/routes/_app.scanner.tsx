@@ -793,6 +793,25 @@ function ScannerPage() {
                       <h2 className="font-display text-xl font-extrabold text-foreground leading-tight">
                         {report.name}
                       </h2>
+                      {report.foodRiskCategory && (
+                        <div className="mt-1.5 flex items-center justify-center sm:justify-start gap-2">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider font-mono">
+                            Estimated Suitability:
+                          </span>
+                          <Badge
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${
+                              report.foodRiskCategory === "avoid"
+                                ? "bg-red-500/10 text-red-600 border border-red-500/20"
+                                : report.foodRiskCategory === "moderate"
+                                  ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                                  : "bg-green-500/10 text-green-600 border border-green-500/20"
+                            }`}
+                            variant="outline"
+                          >
+                            {report.foodRiskCategory.toUpperCase()}
+                          </Badge>
+                        </div>
+                      )}
                     </div>
 
                     {/* Dual Score Gauge */}
@@ -811,28 +830,58 @@ function ScannerPage() {
                           {tr("personalized", currentLang)}
                         </div>
                         <div
-                          className={`text-base font-extrabold ${getScoreTextColor(report.personalizedScore ?? report.score)}`}
+                          className={`text-base font-extrabold ${getScoreTextColor(report.personalizedFoodScore ?? report.personalizedScore ?? report.score)}`}
                         >
-                          {report.personalizedScore ?? report.score}/10
+                          {report.personalizedFoodScore ?? report.personalizedScore ?? report.score}
+                          /10
                         </div>
                       </div>
                       <div
-                        className={`h-11 w-11 rounded-xl flex items-center justify-center font-display text-lg font-black ${getScoreColor(report.personalizedScore ?? report.score)}`}
+                        className={`h-11 w-11 rounded-xl flex items-center justify-center font-display text-lg font-black ${getScoreColor(report.personalizedFoodScore ?? report.personalizedScore ?? report.score)}`}
                       >
-                        {report.personalizedScore ?? report.score}
+                        {report.personalizedFoodScore ?? report.personalizedScore ?? report.score}
                       </div>
                     </div>
                   </div>
 
-                  {/* Recommendation Card */}
-                  <div className="rounded-xl border border-border bg-surface-muted/30 p-5 shadow-sm space-y-2">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-teal">
-                      {tr("personalizedImpactRec", currentLang)}
+                  {/* Reasons Breakdown */}
+                  {report.reasons && report.reasons.length > 0 && (
+                    <div className="mb-4 rounded-xl border border-border bg-accent/10 p-4 space-y-1.5 text-left">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                        Deduction Analysis & Drivers
+                      </div>
+                      <ul className="list-disc pl-4 text-xs text-foreground/80 space-y-1">
+                        {report.reasons.map((reason, idx) => (
+                          <li key={idx}>{reason}</li>
+                        ))}
+                      </ul>
                     </div>
-                    <p className="text-xs leading-relaxed text-foreground/90 font-medium">
-                      "{report.recommendation}"
-                    </p>
-                  </div>
+                  )}
+
+                  {/* Recommendation Card / Gemini Explanation */}
+                  {report.geminiExplanation ? (
+                    <div className="rounded-xl border border-teal/20 bg-teal/5 p-5 shadow-sm space-y-2 text-left relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-1.5 text-teal/10">
+                        <Sparkles className="h-24 w-24 -mr-6 -mt-6" />
+                      </div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-teal flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-teal" />
+                        AI Clinical Analysis & Explanation
+                      </div>
+                      <p className="text-xs leading-relaxed text-foreground/90 font-medium relative z-10">
+                        "{report.geminiExplanation}"
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-border bg-surface-muted/30 p-5 shadow-sm space-y-2 text-left">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-teal">
+                        {tr("personalizedImpactRec", currentLang)}
+                      </div>
+                      <p className="text-xs leading-relaxed text-foreground/90 font-medium">
+                        "{report.recommendation}"
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -937,7 +986,8 @@ function ScannerPage() {
               </div>
 
               {/* Recommended Healthy Alternatives */}
-              {report.alternatives && report.alternatives.length > 0 && (
+              {((report.betterAlternatives && report.betterAlternatives.length > 0) ||
+                (report.alternatives && report.alternatives.length > 0)) && (
                 <Card className="border-border bg-surface shadow-card-soft">
                   <CardHeader className="pb-3 border-b border-border/40">
                     <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -950,7 +1000,10 @@ function ScannerPage() {
                       {tr("alternativesSub", currentLang)}
                     </p>
                     <div className="grid gap-3 sm:grid-cols-3">
-                      {report.alternatives.map((alt, idx) => (
+                      {(report.betterAlternatives && report.betterAlternatives.length > 0
+                        ? report.betterAlternatives
+                        : report.alternatives
+                      ).map((alt, idx) => (
                         <div
                           key={idx}
                           className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-muted/30 p-3 hover:bg-accent/10 transition-all cursor-default"

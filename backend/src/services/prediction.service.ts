@@ -161,4 +161,140 @@ export class PredictionService {
       },
     };
   }
+
+  /**
+   * Predict health risk trends and future values using linear regression on progress logs
+   */
+  static predictProgressRisk(logs: any[]): any {
+    if (!logs || logs.length < 3) {
+      return {
+        status: "insufficient_data",
+        message: "Add more progress logs to unlock prediction.",
+      };
+    }
+
+    // Sort logs by date ascending
+    const sorted = [...logs].sort(
+      (a, b) =>
+        new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime(),
+    );
+    const n = sorted.length;
+
+    const t0 = new Date(sorted[0].createdAt || sorted[0].date).getTime();
+    const x = sorted.map((log) => {
+      const t = new Date(log.createdAt || log.date).getTime();
+      return (t - t0) / (1000 * 60 * 60 * 24); // days from baseline
+    });
+
+    const y = sorted.map((log) => log.overallRisk ?? log.overallScore ?? 0);
+    const w = sorted.map((log) => log.weight ?? log.weightKg ?? 0);
+
+    // Calculate slope for risk score
+    let sumX = 0,
+      sumY = 0,
+      sumXY = 0,
+      sumXX = 0;
+    let sumW = 0,
+      sumXW = 0;
+
+    for (let i = 0; i < n; i++) {
+      sumX += x[i];
+      sumY += y[i];
+      sumXY += x[i] * y[i];
+      sumXX += x[i] * x[i];
+      sumW += w[i];
+      sumXW += x[i] * w[i];
+    }
+
+    const denom = n * sumXX - sumX * sumX;
+    let slope = 0;
+    let weightSlope = 0;
+
+    if (denom !== 0) {
+      slope = (n * sumXY - sumX * sumY) / denom;
+      weightSlope = (n * sumXW - sumX * sumW) / denom;
+    }
+
+    // Classify trend
+    let trend: "improving" | "stable" | "worsening" = "stable";
+    if (slope < -0.05) {
+      trend = "improving";
+    } else if (slope > 0.05) {
+      trend = "worsening";
+    }
+
+    const latestRisk = y[n - 1];
+    const latestWeight = w[n - 1];
+
+    // Project 30 and 90 days risk
+    let predictedRisk30Days = Math.round(latestRisk + slope * 30);
+    let predictedRisk90Days = Math.round(latestRisk + slope * 90);
+
+    // Medical safety clamp to keep predictions within realistic limits
+    predictedRisk30Days = Math.max(5, Math.min(95, predictedRisk30Days));
+    predictedRisk90Days = Math.max(5, Math.min(95, predictedRisk90Days));
+
+    // Calculate prediction confidence
+    let baseConfidence = 0.7;
+    if (n >= 5) baseConfidence += 0.05;
+    if (n >= 10) baseConfidence += 0.08;
+
+    // Check if regression line fits data closely (R-squared style check)
+    let totalError = 0;
+    const meanY = sumY / n;
+    let totalVariance = 0;
+    for (let i = 0; i < n; i++) {
+      const pred = latestRisk + slope * (x[i] - x[n - 1]);
+      totalError += Math.pow(y[i] - pred, 2);
+      totalVariance += Math.pow(y[i] - meanY, 2);
+    }
+    if (totalVariance > 0 && totalError / totalVariance < 0.2) {
+      baseConfidence += 0.07;
+    }
+
+    const confidence = Math.max(0.65, Math.min(0.95, Number(baseConfidence.toFixed(2))));
+
+    // Generate descriptive reasons
+    const reasons: string[] = [];
+    reasons.push(
+      `Based on a regression trend analysis of your last ${n} logged entries, your risk is currently categorized as ${trend}.`,
+    );
+
+    if (trend === "improving") {
+      reasons.push(
+        `Your overall estimated risk has been decreasing at a rate of ${(Math.abs(slope) * 7).toFixed(1)} points per week.`,
+      );
+    } else if (trend === "worsening") {
+      reasons.push(
+        `Your overall estimated risk has shown an upward path of ${(slope * 7).toFixed(1)} points per week.`,
+      );
+    } else {
+      reasons.push(
+        "Your overall estimated risk score has remained relatively stable over the monitored period.",
+      );
+    }
+
+    if (weightSlope < -0.05) {
+      reasons.push(
+        `Your logged weight shows a downward trajectory of ${(Math.abs(weightSlope) * 7).toFixed(1)} kg per week, reducing physical loading.`,
+      );
+    } else if (weightSlope > 0.05) {
+      reasons.push(
+        `Your logged weight shows a rising trend of ${(weightSlope * 7).toFixed(1)} kg per week. Controlling weight can stabilize risks.`,
+      );
+    }
+
+    reasons.push(
+      "This prediction may indicate future direction assuming lifestyle habits persist, and is for awareness and lifestyle guidance only.",
+    );
+
+    return {
+      status: "ready",
+      trend,
+      predictedRisk30Days,
+      predictedRisk90Days,
+      confidence,
+      reasons,
+    };
+  }
 }

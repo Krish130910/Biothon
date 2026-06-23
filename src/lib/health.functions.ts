@@ -38,6 +38,7 @@ const ResultSchema = GeminiResultSchema.extend({
   actionPriorities: z
     .array(z.object({ action: z.string(), estimatedImpact: z.number() }))
     .optional(),
+  mlRisk: z.any().optional(),
 });
 
 export type HealthResult = z.infer<typeof ResultSchema>;
@@ -366,6 +367,11 @@ export const IngredientReportSchema = z.object({
   diabetesImpactPoints: z.number().optional(),
   hypertensionImpactPoints: z.number().optional(),
   heartImpactPoints: z.number().optional(),
+  foodRiskCategory: z.enum(["safe", "moderate", "avoid"]).optional(),
+  personalizedFoodScore: z.number().optional(),
+  reasons: z.array(z.string()).optional(),
+  betterAlternatives: z.array(z.string()).optional(),
+  geminiExplanation: z.string().nullable().optional(),
 });
 
 export type IngredientReport = z.infer<typeof IngredientReportSchema>;

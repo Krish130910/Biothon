@@ -14,6 +14,7 @@ import { RiskDriverService } from "./services/riskDriver.service.js";
 import { FoodImpactService } from "./services/foodImpact.service.js";
 import { PredictionService } from "./services/prediction.service.js";
 import { BehaviorService } from "./services/behavior.service.js";
+import { MlRiskService } from "./services/mlRisk.service.js";
 import expertReviewRoutes from "./routes/expertReview.routes.js";
 
 dotenv.config();
@@ -233,6 +234,28 @@ app.post("/api/profile", requireAuth, async (req: AuthenticatedRequest, res) => 
       diseases: data.diseases || null,
     });
 
+    // Calculate ML risk supporting category
+    let mlRisk: any = null;
+    try {
+      mlRisk = MlRiskService.classifyMlRisk(
+        {
+          age: data.age,
+          gender: data.gender,
+          heightCm: data.heightCm,
+          weightKg: data.weightKg,
+          smoking: data.smoking,
+          exercise: data.exercise,
+          familyHistory: data.familyHistory,
+          symptoms: data.symptoms,
+          alcohol: data.alcohol || null,
+          diseases: data.diseases || null,
+        },
+        analysis,
+      );
+    } catch (mlErr) {
+      console.error("ML risk calculation failed in profile save, fallback to null:", mlErr);
+    }
+
     const updatedData: any = {
       age: data.age,
       gender: data.gender,
@@ -262,6 +285,7 @@ app.post("/api/profile", requireAuth, async (req: AuthenticatedRequest, res) => 
         factors: analysis.factors,
         actionPriorities: analysis.actionPriorities,
         bmi: analysis.bmi,
+        mlRisk: mlRisk || undefined,
       },
       updatedAt: new Date().toISOString(),
     };
@@ -424,6 +448,31 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
     analysis.exercisePlan = enriched.exercisePlan;
     analysis.preventionTips = enriched.preventionTips;
 
+    // Calculate ML risk supporting category
+    let mlRisk: any = null;
+    try {
+      mlRisk = MlRiskService.classifyMlRisk(
+        {
+          age: data.age,
+          gender: data.gender,
+          heightCm: data.heightCm,
+          weightKg: data.weightKg,
+          smoking: data.smoking,
+          exercise: data.exercise,
+          familyHistory: data.familyHistory,
+          symptoms: data.symptoms,
+          alcohol: data.alcohol || null,
+          diseases: data.diseases || null,
+        },
+        analysis,
+      );
+    } catch (mlErr) {
+      console.error(
+        "ML risk calculation failed in clinical risk calculate, fallback to null:",
+        mlErr,
+      );
+    }
+
     // Write assessment record in the 'assessments' collection
     const assessmentRef = db.collection("assessments").doc();
     const assessmentData = {
@@ -449,6 +498,7 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
       overallRiskLabel: analysis.overallRiskLabel,
       factors: analysis.factors,
       actionPriorities: analysis.actionPriorities,
+      mlRisk: mlRisk || null,
       createdAt: new Date().toISOString(),
     };
     await assessmentRef.set(assessmentData);
@@ -484,6 +534,7 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
         factors: analysis.factors,
         actionPriorities: analysis.actionPriorities,
         bmi: analysis.bmi,
+        mlRisk: mlRisk || undefined,
       },
       updatedAt: new Date().toISOString(),
     };
@@ -1031,71 +1082,137 @@ Provide:
       const foodName = result?.name || productName || "Unknown Product";
       const ingreds = result?.watchOut || ingredients || [];
 
-      const deterministic = FoodImpactService.analyze(foodName, ingreds, risks, actionPriorities);
+      // Extract and analyze nutrition facts deterministically
+      const parsedNutrition = FoodImpactService.parseNutritionFacts(ingreds, result?.rawText);
+      const deterministic = FoodImpactService.analyzePersonalizedFood(
+        ingreds,
+        parsedNutrition,
+        risks,
+        topDrivers.map((d) => d.factor),
+      );
 
-      if (!result) {
-        // Fully deterministic fallback output
-        result = {
-          name: foodName,
-          goodIngredients: [],
-          watchOut: ingreds,
-          diabetesImpact:
-            deterministic.diabetesImpact > 0
-              ? `Contains ingredients with high glycemic or diabetic concerns. Total impact score: +${deterministic.diabetesImpact}`
-              : "Low glycemic impact. No immediate diabetes concern.",
-          bloodPressureImpact:
-            deterministic.hypertensionImpact > 0
-              ? `Contains high sodium or vasoconstrictive agents. Total vascular impact score: +${deterministic.hypertensionImpact}`
-              : "Low sodium impact. Low blood pressure concern.",
-          heartHealthImpact:
-            deterministic.heartImpact > 0
-              ? `Contains saturated fats, trans fats, or palm oils. Total cardiovascular impact score: +${deterministic.heartImpact}`
-              : "Low saturated fats. Favorable for heart health.",
-          recommendation: deterministic.conflict.conflicts
-            ? `${deterministic.conflict.message} Consuming this product frequently is not recommended.`
-            : `This food has a personalized score of ${deterministic.personalizedScore}/10 for you. ${deterministic.personalizedScore >= 8 ? "Highly suitable for daily inclusion." : "Consume in moderation."}`,
-          alternatives: deterministic.alternatives,
-          rawText: ingreds.join(", "),
-        };
+      // Generate Gemini explanation narrative if key is configured
+      let geminiExplanation: string | undefined = undefined;
+      if (key && key !== "YOUR_GEMINI_API_KEY" && !key.includes("placeholder")) {
+        try {
+          const model = "gemini-2.5-flash";
+          const explainUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+
+          const explainPrompt = `You are a clinical nutrition auditor for HealthGuard AI.
+We have calculated the following personalized food analysis for this user:
+User Risks:
+- Type 2 Diabetes Risk: ${risks.diabetes}%
+- Heart Disease Risk: ${risks.heart}%
+- Hypertension Risk: ${risks.hypertension}%
+
+Calculated Food Assessment for "${foodName}":
+- Personalized Food Score: ${deterministic.personalizedFoodScore}/10
+- Risk Category: ${deterministic.foodRiskCategory}
+- Glycemic (Diabetes) Impact Score: ${deterministic.diabetesImpact} points
+- Vascular (Hypertension) Impact Score: ${deterministic.hypertensionImpact} points
+- Cardiac (Heart) Impact Score: ${deterministic.heartImpact} points
+- Reasons: ${deterministic.reasons.join("; ")}
+- Better Alternatives: ${deterministic.betterAlternatives.join(", ")}
+
+Please write a supportive, personalized explanation of these computed results in natural language.
+Describe how the ingredients affect the user's specific health risks (diabetes, hypertension, heart disease) based on the computed impact points.
+Explain the reasons why this product is categorized as "${deterministic.foodRiskCategory}" with a personalized score of ${deterministic.personalizedFoodScore}/10.
+
+CRITICAL SAFETY RULES:
+- Include the statement: "This is an estimated risk analysis based on your provided data, for awareness and lifestyle guidance only."
+- Avoid any definitive clinical diagnosis, guaranteed disease prediction, or medical prescription.
+- Do not suggest specific prescription drugs.
+`;
+
+          const explainResp = await fetch(explainUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: explainPrompt }] }],
+              generationConfig: {
+                temperature: 0.2,
+              },
+            }),
+          });
+
+          if (explainResp.ok) {
+            const explainJson: any = await explainResp.json();
+            const explainText =
+              explainJson?.candidates?.[0]?.content?.parts
+                ?.map((p: any) => p.text ?? "")
+                .join("") ?? "";
+            if (explainText) {
+              geminiExplanation = GuardrailsService.sanitizeText(explainText);
+            }
+          }
+        } catch (explainErr) {
+          console.warn(
+            "Failed to generate Gemini explanation narrative, falling back:",
+            explainErr,
+          );
+        }
       }
 
-      // Sanitize values
-      result.diabetesImpact = GuardrailsService.sanitizeText(result.diabetesImpact);
-      result.bloodPressureImpact = GuardrailsService.sanitizeText(result.bloodPressureImpact);
-      result.heartHealthImpact = GuardrailsService.sanitizeText(result.heartHealthImpact);
-      result.recommendation = GuardrailsService.sanitizeText(result.recommendation);
-
-      // Merge deterministic scores and conflicts
-      result.score = deterministic.personalizedScore; // keep score field aligned for old frontend calls
-      result.foodScore = deterministic.foodScore;
-      result.personalizedScore = deterministic.personalizedScore;
-      result.riskLevel = deterministic.riskLevel;
-      result.conflict = deterministic.conflict;
-      result.recommendations = [result.recommendation];
-
-      result.diabetesImpactPoints = deterministic.diabetesImpact;
-      result.hypertensionImpactPoints = deterministic.hypertensionImpact;
-      result.heartImpactPoints = deterministic.heartImpact;
+      const responsePayload = {
+        name: foodName,
+        goodIngredients: result?.goodIngredients || [],
+        watchOut: ingreds,
+        foodRiskCategory: deterministic.foodRiskCategory,
+        personalizedFoodScore: deterministic.personalizedFoodScore,
+        diabetesImpact: deterministic.diabetesImpact,
+        hypertensionImpact: deterministic.hypertensionImpact,
+        heartImpact: deterministic.heartImpact,
+        reasons: deterministic.reasons,
+        betterAlternatives: deterministic.betterAlternatives,
+        geminiExplanation: geminiExplanation || null,
+        // for backward compatibility
+        score: deterministic.personalizedFoodScore,
+        foodScore: 10,
+        personalizedScore: deterministic.personalizedFoodScore,
+        riskLevel:
+          deterministic.foodRiskCategory === "safe"
+            ? "Low"
+            : deterministic.foodRiskCategory === "moderate"
+              ? "Moderate"
+              : "High",
+        recommendation: geminiExplanation || deterministic.reasons.join(" "),
+        recommendations: [geminiExplanation || deterministic.reasons.join(" ")],
+        alternatives: deterministic.betterAlternatives,
+        diabetesImpactPoints: deterministic.diabetesImpact,
+        hypertensionImpactPoints: deterministic.hypertensionImpact,
+        heartImpactPoints: deterministic.heartImpact,
+        conflict: {
+          conflicts: deterministic.foodRiskCategory === "avoid",
+          message:
+            deterministic.foodRiskCategory === "avoid"
+              ? "This food conflicts with your health goals."
+              : "",
+        },
+      };
 
       // Save scan to Firestore 'foodScans' collection
       try {
         const scanRef = db.collection("foodScans").doc();
         await scanRef.set({
           userId: uid,
-          productName: result.name,
-          ingredients: result.watchOut,
-          foodScore: result.foodScore,
-          personalizedScore: result.personalizedScore,
-          riskLevel: result.riskLevel,
+          productName: foodName,
+          ingredients: ingreds,
+          foodScore: 10,
+          personalizedFoodScore: deterministic.personalizedFoodScore,
+          foodRiskCategory: deterministic.foodRiskCategory,
+          diabetesImpact: deterministic.diabetesImpact,
+          hypertensionImpact: deterministic.hypertensionImpact,
+          heartImpact: deterministic.heartImpact,
+          reasons: deterministic.reasons,
+          betterAlternatives: deterministic.betterAlternatives,
+          geminiExplanation: geminiExplanation || null,
           createdAt: new Date().toISOString(),
-          alternatives: result.alternatives,
-          recommendation: result.recommendation,
         });
       } catch (saveErr) {
         console.warn("Failed to save food scan to Firestore:", saveErr);
       }
 
-      return res.json(result);
+      return res.json(responsePayload);
     } catch (err: any) {
       console.error("Food analyze API error:", err);
       return res
@@ -1584,12 +1701,36 @@ app.get("/api/progress/review", requireAuth, async (req: AuthenticatedRequest, r
     // Generate AI narrative review & adapted coaching Focus Areas / Maintain Habits
     const reviewResult = await AIService.generateProgressReview(uid, logs, language);
 
+    // Calculate progress predictions & store in Firestore when status is ready
+    let predictionResult: any = {
+      status: "insufficient_data",
+      message: "Add more progress logs to unlock prediction.",
+    };
+    try {
+      predictionResult = PredictionService.predictProgressRisk(logs);
+      if (predictionResult.status === "ready") {
+        const predRef = db.collection("progressPredictions").doc();
+        await predRef.set({
+          userId: uid,
+          trend: predictionResult.trend,
+          predictedRisk30Days: predictionResult.predictedRisk30Days,
+          predictedRisk90Days: predictionResult.predictedRisk90Days,
+          confidence: predictionResult.confidence,
+          reasons: predictionResult.reasons,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (predErr) {
+      console.error("Progress prediction calculation failed:", predErr);
+    }
+
     return res.json({
       success: true,
       review: reviewResult.review,
       coaching: reviewResult.coaching,
       milestones,
       trends,
+      prediction: predictionResult,
     });
   } catch (err: any) {
     console.error("Progress review API error:", err);
