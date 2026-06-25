@@ -43,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [syncing, setSyncing] = useState(false);
   const [hasCompletedAssessment, setHasCompletedAssessment] = useState<boolean | null>(null);
   const isSyncingRef = useRef(false);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Read local stores so we can watch them reactively
   const [profile] = useProfile();
@@ -69,14 +70,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 2500);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("Auth loading start");
       clearTimeout(timer);
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
       setUser(firebaseUser);
 
       if (firebaseUser && isConfigured) {
+        // Start safety timeout for the entire sync process (Firestore + Backend)
+        syncTimeoutRef.current = setTimeout(() => {
+          if (loading || syncing || isSyncingRef.current) {
+            console.warn("Patient sync timed out after 9 seconds. Stopping loader.");
+            setLoading(false);
+            setSyncing(false);
+            isSyncingRef.current = false;
+            toast.error("Unable to sync patient record. Please refresh or try again.");
+            console.log("Auth loading end");
+          }
+        }, 9000);
+
         // Fetch/create Firestore user document safely with offline fallback and timeouts
         let hasCompleted = false;
         const isOffline = !navigator.onLine;
         const uid = firebaseUser.uid;
+        let firestoreSuccess = false;
         console.log(
           `[Firestore Debug] Starting flow for user ${uid}. Offline status: ${isOffline}`,
         );
@@ -136,11 +155,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           setHasCompletedAssessment(hasCompleted);
+          console.log("User doc fetched");
+          firestoreSuccess = true;
         } catch (dbErr: unknown) {
           console.error(
             "[Firestore Debug] Error fetching/creating user doc in auth-context:",
             dbErr,
           );
+
           const e = dbErr as { message?: string; code?: string; stack?: string };
           console.error(
             `[Firestore Debug] Details - Code: ${e?.code || "N/A"}, Message: ${e?.message || "N/A"}, Stack: ${e?.stack || "N/A"}`,
@@ -153,117 +175,138 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             errMsg.includes("timeout");
           if (isOfflineError) {
             toast.error("Unable to connect. Please check your internet connection.");
-            // Fallback to checking localStorage for onboarding status
-            try {
-              const localProfile = localStorage.getItem("hg.profile.v1");
-              setHasCompletedAssessment(!!localProfile);
-            } catch {
-              setHasCompletedAssessment(false);
-            }
           } else {
+            toast.error("Unable to sync patient record.");
+          }
+          // Fallback to checking localStorage for onboarding status
+          try {
+            const localProfile = localStorage.getItem("hg.profile.v1");
+            setHasCompletedAssessment(!!localProfile);
+          } catch {
             setHasCompletedAssessment(false);
           }
         } finally {
           setLoading(false);
         }
 
-        // Logged in: Sync from Express Backend to LocalStorage
-        isSyncingRef.current = true;
-        setSyncing(true);
+        if (firestoreSuccess && !isOffline) {
+          // Logged in: Sync from Express Backend to LocalStorage
+          isSyncingRef.current = true;
+          setSyncing(true);
 
-        if (!navigator.onLine) {
-          console.warn("Offline - skipping Backend sync");
-          isSyncingRef.current = false;
-          setSyncing(false);
-          return;
-        }
-
-        try {
-          // Sync Google profile photo back to Auth profile if it was overwritten by presets
-          const googleInfo = firebaseUser.providerData.find((p) => p.providerId === "google.com");
-          if (googleInfo && googleInfo.photoURL && firebaseUser.photoURL !== googleInfo.photoURL) {
-            console.log(
-              "Restoring Firebase user photoURL to Google profile picture:",
-              googleInfo.photoURL,
-            );
-            try {
-              await updateProfile(firebaseUser, { photoURL: googleInfo.photoURL });
-            } catch (authErr) {
-              console.error("Failed to sync auth profile photoURL:", authErr);
-            }
-          }
-
-          // Fetch profile, result, and history from Express backend
-          const idToken = await firebaseUser.getIdToken();
-          const response = await fetch(`${API_URL}/api/profile`, {
-            headers: {
-              Authorization: `Bearer ${idToken}`,
-            },
-          });
-
-          if (!response.ok) {
-            throw new Error(`Failed to fetch profile: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-
-          if (data.profile) {
-            // Sync to LocalStorage (writes will trigger custom hg:store event)
-            localStorage.setItem("hg.profile.v1", JSON.stringify(data.profile));
-            if (data.result) {
-              localStorage.setItem("hg.result.v1", JSON.stringify(data.result));
-            } else {
-              localStorage.removeItem("hg.result.v1");
-            }
-            if (data.history) {
-              localStorage.setItem("hg.history.v1", JSON.stringify(data.history));
-            } else {
-              localStorage.removeItem("hg.history.v1");
-            }
-            // Notify hooks
-            window.dispatchEvent(new CustomEvent("hg:store"));
-          } else {
-            // Backend has no profile: sync current localStorage to backend
-            const localProfile = localStorage.getItem("hg.profile.v1");
-            const localResult = localStorage.getItem("hg.result.v1");
-            const localHistory = localStorage.getItem("hg.history.v1");
-
-            if (localProfile) {
-              const body = {
-                ...JSON.parse(localProfile),
-                result: localResult ? JSON.parse(localResult) : null,
-                history: localHistory ? JSON.parse(localHistory) : [],
-              };
-
-              const postResponse = await fetch(`${API_URL}/api/profile`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${idToken}`,
-                },
-                body: JSON.stringify(body),
-              });
-
-              if (!postResponse.ok) {
-                console.error("Failed to push initial local profile to backend");
+          try {
+            // Sync Google profile photo back to Auth profile if it was overwritten by presets
+            const googleInfo = firebaseUser.providerData.find((p) => p.providerId === "google.com");
+            if (
+              googleInfo &&
+              googleInfo.photoURL &&
+              firebaseUser.photoURL !== googleInfo.photoURL
+            ) {
+              console.log(
+                "Restoring Firebase user photoURL to Google profile picture:",
+                googleInfo.photoURL,
+              );
+              try {
+                await updateProfile(firebaseUser, { photoURL: googleInfo.photoURL });
+              } catch (authErr) {
+                console.error("Failed to sync auth profile photoURL:", authErr);
               }
             }
+
+            // Fetch profile, result, and history from Express backend
+            const idToken = await firebaseUser.getIdToken();
+            const response = await fetch(`${API_URL}/api/profile`, {
+              headers: {
+                Authorization: `Bearer ${idToken}`,
+              },
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch profile: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            if (data.profile) {
+              // Sync to LocalStorage (writes will trigger custom hg:store event)
+              localStorage.setItem("hg.profile.v1", JSON.stringify(data.profile));
+              if (data.result) {
+                localStorage.setItem("hg.result.v1", JSON.stringify(data.result));
+              } else {
+                localStorage.removeItem("hg.result.v1");
+              }
+              if (data.history) {
+                localStorage.setItem("hg.history.v1", JSON.stringify(data.history));
+              } else {
+                localStorage.removeItem("hg.history.v1");
+              }
+              // Notify hooks
+              window.dispatchEvent(new CustomEvent("hg:store"));
+            } else {
+              // Backend has no profile: sync current localStorage to backend
+              const localProfile = localStorage.getItem("hg.profile.v1");
+              const localResult = localStorage.getItem("hg.result.v1");
+              const localHistory = localStorage.getItem("hg.history.v1");
+
+              if (localProfile) {
+                const body = {
+                  ...JSON.parse(localProfile),
+                  result: localResult ? JSON.parse(localResult) : null,
+                  history: localHistory ? JSON.parse(localHistory) : [],
+                };
+
+                const postResponse = await fetch(`${API_URL}/api/profile`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${idToken}`,
+                  },
+                  body: JSON.stringify(body),
+                });
+
+                if (!postResponse.ok) {
+                  console.error("Failed to push initial local profile to backend");
+                }
+              }
+            }
+            console.log("Patient sync complete");
+          } catch (error: unknown) {
+            console.error("Error syncing with backend:", error);
+            toast.error("Could not sync assessment data with cloud account.");
+          } finally {
+            isSyncingRef.current = false;
+            setSyncing(false);
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
+            console.log("Auth loading end");
           }
-        } catch (error: unknown) {
-          console.error("Error syncing with backend:", error);
-          toast.error("Could not sync assessment data with cloud account.");
-        } finally {
+        } else {
           isSyncingRef.current = false;
           setSyncing(false);
+          if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+            syncTimeoutRef.current = null;
+          }
+          console.log("Auth loading end");
         }
       } else {
         setHasCompletedAssessment(null);
         setLoading(false);
+        if (syncTimeoutRef.current) {
+          clearTimeout(syncTimeoutRef.current);
+          syncTimeoutRef.current = null;
+        }
+        console.log("Auth loading end");
       }
     });
 
     return () => {
       clearTimeout(timer);
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
       unsubscribe();
     };
   }, []);
@@ -320,24 +363,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Auth Methods
   const loginWithGoogle = async () => {
     try {
+      setLoading(true);
       await signInWithPopup(auth, googleProvider);
       toast.success("Successfully signed in with Google");
     } catch (error: unknown) {
+      console.error("Patient sync failed:", error);
+      toast.error("Unable to sync patient record.");
       const e = error as FirebaseError;
-      console.error(e);
       if (e.code !== "auth/popup-closed-by-user") {
         toast.error(e.message || "Google sign-in failed.");
       }
+    } finally {
+      setLoading(false);
     }
   };
 
   const loginWithEmail = async (email: string, pass: string) => {
     try {
+      setLoading(true);
       await signInWithEmailAndPassword(auth, email, pass);
       toast.success("Successfully signed in");
     } catch (error: unknown) {
+      console.error("Patient sync failed:", error);
+      toast.error("Unable to sync patient record.");
       const e = error as FirebaseError;
-      console.error(e);
       if (
         e.code === "auth/invalid-credential" ||
         e.code === "auth/user-not-found" ||
@@ -348,11 +397,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error(e.message || "Failed to sign in. Check your credentials.");
       }
       throw e;
+    } finally {
+      setLoading(false);
     }
   };
 
   const signUpWithEmail = async (email: string, pass: string, name: string) => {
     try {
+      setLoading(true);
       const credential = await createUserWithEmailAndPassword(auth, email, pass);
       await updateProfile(credential.user, { displayName: name });
 
@@ -406,27 +458,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       toast.success("Account created successfully");
     } catch (error: unknown) {
+      console.error("Patient sync failed:", error);
+      toast.error("Unable to sync patient record.");
       const e = error as FirebaseError;
-      console.error(e);
-      toast.error(e.message || "Sign up failed.");
       throw e;
+    } finally {
+      setLoading(false);
     }
   };
 
   const resetPassword = async (email: string) => {
     try {
+      setLoading(true);
       await sendPasswordResetEmail(auth, email);
       toast.success("Password reset email sent. Please check your inbox.");
     } catch (error: unknown) {
+      console.error("Patient sync failed:", error);
+      toast.error("Unable to sync patient record.");
       const e = error as FirebaseError;
-      console.error(e);
-      toast.error(e.message || "Failed to send password reset email.");
       throw e;
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = async () => {
     try {
+      setLoading(true);
       await signOut(auth);
       // Clear local storage and state for clinical assessment privacy
       localStorage.removeItem("hg.profile.v1");
@@ -435,25 +493,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.dispatchEvent(new CustomEvent("hg:store"));
       toast.success("Successfully signed out");
     } catch (error: unknown) {
+      console.error("Patient sync failed:", error);
+      toast.error("Unable to sync patient record.");
       const e = error as FirebaseError;
       console.error(e);
-      toast.error("Logout failed.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const updateUserProfile = async (name: string, photoUrl: string) => {
     if (!user) return;
     try {
+      setLoading(true);
       await updateProfile(user, { displayName: name, photoURL: photoUrl });
       setUser({ ...user, displayName: name, photoURL: photoUrl });
 
       // Note: User profile displayName and photoURL are verified/updated via Firebase Auth ID Token.
       toast.success("Profile updated successfully");
     } catch (error: unknown) {
+      console.error("Patient sync failed:", error);
+      toast.error("Unable to sync patient record.");
       const e = error as FirebaseError;
-      console.error(e);
-      toast.error(e.message || "Failed to update profile.");
       throw e;
+    } finally {
+      setLoading(false);
     }
   };
 

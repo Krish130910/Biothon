@@ -28,22 +28,24 @@ function AppLayout() {
   const currentLang = useLanguage();
 
   useEffect(() => {
-    if (!loading && !user) {
-      if (pathname && pathname !== "/") {
-        navigate({ to: "/login", search: { redirect: pathname } });
-      } else {
+    if (!loading && !syncing) {
+      if (!user) {
         navigate({ to: "/" });
+      } else if (hasCompletedAssessment !== null) {
+        if (hasCompletedAssessment) {
+          if (pathname === "/assessment") {
+            console.log("Redirecting to dashboard/assessment");
+            navigate({ to: "/dashboard" });
+          }
+        } else {
+          if (pathname !== "/assessment") {
+            console.log("Redirecting to dashboard/assessment");
+            navigate({ to: "/assessment" });
+          }
+        }
       }
     }
-  }, [user, loading, navigate, pathname]);
-
-  useEffect(() => {
-    if (!loading && user && hasCompletedAssessment !== null) {
-      if (!hasCompletedAssessment && pathname !== "/assessment") {
-        navigate({ to: "/assessment" });
-      }
-    }
-  }, [user, loading, hasCompletedAssessment, pathname, navigate]);
+  }, [user, loading, syncing, hasCompletedAssessment, pathname, navigate]);
 
   if (loading || syncing) {
     return (
