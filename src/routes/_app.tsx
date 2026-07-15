@@ -27,7 +27,7 @@ function AppLayout() {
   const currentLang = useLanguage();
 
   useEffect(() => {
-    if (loading || syncing) return;
+    if (loading) return;
 
     if (!user) {
       navigate({
@@ -35,15 +35,15 @@ function AppLayout() {
         replace: true,
       });
     }
-  }, [user, loading, syncing, navigate]);
+  }, [user, loading, navigate]);
 
-  if (loading || syncing) {
+  if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-10 w-10 animate-spin text-teal" />
           <p className="text-sm font-medium text-muted-foreground">
-            {syncing ? tr("syncingRecord", currentLang) : tr("verifyingCredentials", currentLang)}
+            {tr("verifyingCredentials", currentLang)}
           </p>
         </div>
       </div>

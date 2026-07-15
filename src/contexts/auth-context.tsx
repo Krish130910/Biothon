@@ -12,6 +12,8 @@ import {
 import { auth, googleProvider, isConfigured, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
+import { startMeasure, endMeasure } from "@/lib/timing";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 import { useProfile, useHealthResult, useHistory } from "@/lib/health-store";
 import { toast } from "sonner";
@@ -44,6 +46,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [hasCompletedAssessment, setHasCompletedAssessment] = useState<boolean | null>(null);
   const isSyncingRef = useRef(false);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasSyncedThisSession = useRef<string | null>(null);
+  const syncPromiseRef = useRef<Promise<void> | null>(null);
 
   // Read local stores so we can watch them reactively
   const [profile] = useProfile();
@@ -57,255 +61,166 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Safeguard timeout: if Firebase takes too long (e.g., 2.5s) to resolve,
-    // fallback to guest state by setting loading to false.
-    const timer = setTimeout(() => {
-      setLoading((prevLoading) => {
-        if (prevLoading) {
-          console.warn("Firebase Auth timed out, falling back to guest mode.");
-          return false;
-        }
-        return prevLoading;
-      });
-    }, 2500);
-
+    startMeasure("Firebase Auth Resolution");
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log("Auth loading start");
-      clearTimeout(timer);
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-        syncTimeoutRef.current = null;
-      }
       setUser(firebaseUser);
+      setLoading(false); // Resolve loading immediately!
+      endMeasure("Firebase Auth Resolution");
 
       if (firebaseUser && isConfigured) {
-        // Start safety timeout for the entire sync process (Firestore + Backend)
-        syncTimeoutRef.current = setTimeout(() => {
-          if (loading || syncing || isSyncingRef.current) {
-            console.warn("Patient sync timed out after 9 seconds. Stopping loader.");
-            setLoading(false);
-            setSyncing(false);
-            isSyncingRef.current = false;
-            toast.error("Unable to sync patient record. Please refresh or try again.");
-            console.log("Auth loading end");
-          }
-        }, 9000);
-
-        // Fetch/create Firestore user document safely with offline fallback and timeouts
-        let hasCompleted = false;
-        const isOffline = !navigator.onLine;
-        const uid = firebaseUser.uid;
-        let firestoreSuccess = false;
-        console.log(
-          `[Firestore Debug] Starting flow for user ${uid}. Offline status: ${isOffline}`,
-        );
-        try {
-          if (isOffline) {
-            throw new Error("offline");
-          }
-          const userDocRef = doc(db, "users", uid);
-
-          console.log(`[Firestore Debug] Fetching user doc: users/${uid}`);
-          const startTime = Date.now();
-
-          // 2s timeout race to prevent hangs on flaky connections
-          const userDocSnap = await Promise.race([
-            getDoc(userDocRef),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 2000)),
-          ]);
-
-          console.log(
-            `[Firestore Debug] Fetch completed in ${Date.now() - startTime}ms. Exists: ${userDocSnap.exists()}`,
-          );
-
-          if (!userDocSnap.exists()) {
-            const initialDoc = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName || null,
-              hasCompletedAssessment: false,
-              createdAt: serverTimestamp(),
-              lastLoginAt: serverTimestamp(),
-            };
-            console.log(
-              `[Firestore Debug] User doc does not exist. Creating via setDoc users/${uid} with payload:`,
-              initialDoc,
-            );
-            const createStartTime = Date.now();
-            await setDoc(userDocRef, initialDoc);
-            console.log(
-              `[Firestore Debug] User doc created successfully in ${Date.now() - createStartTime}ms`,
-            );
-            hasCompleted = false;
-          } else {
-            const userData = userDocSnap.data();
-            console.log(`[Firestore Debug] User data retrieved:`, userData);
-            hasCompleted = !!userData?.hasCompletedAssessment;
-
-            // Standalone, non-blocking write for lastLoginAt
-            try {
-              console.log(`[Firestore Debug] Updating lastLoginAt for users/${uid}`);
-              const updateStartTime = Date.now();
-              await setDoc(userDocRef, { lastLoginAt: serverTimestamp() }, { merge: true });
-              console.log(
-                `[Firestore Debug] lastLoginAt updated successfully in ${Date.now() - updateStartTime}ms`,
-              );
-            } catch (lastLoginErr) {
-              console.error(`[Firestore Debug] Failed to update lastLoginAt:`, lastLoginErr);
-            }
-          }
-          setHasCompletedAssessment(hasCompleted);
-          console.log("User doc fetched");
-          firestoreSuccess = true;
-        } catch (dbErr: unknown) {
-          console.error(
-            "[Firestore Debug] Error fetching/creating user doc in auth-context:",
-            dbErr,
-          );
-
-          const e = dbErr as { message?: string; code?: string; stack?: string };
-          console.error(
-            `[Firestore Debug] Details - Code: ${e?.code || "N/A"}, Message: ${e?.message || "N/A"}, Stack: ${e?.stack || "N/A"}`,
-          );
-          const errMsg = e?.message || "";
-          const isOfflineError =
-            isOffline ||
-            errMsg.includes("offline") ||
-            e?.code === "unavailable" ||
-            errMsg.includes("timeout");
-          if (isOfflineError) {
-            toast.error("Unable to connect. Please check your internet connection.");
-          } else {
-            toast.error("Unable to sync patient record.");
-          }
-          // Fallback to checking localStorage for onboarding status
-          try {
-            const localProfile = localStorage.getItem("hg.profile.v1");
-            setHasCompletedAssessment(!!localProfile);
-          } catch {
-            setHasCompletedAssessment(false);
-          }
+        // Prevent duplicate background sync runs for same user session
+        if (hasSyncedThisSession.current === firebaseUser.uid) {
+          console.log("Sync already completed for this session.");
+          return;
         }
 
-        if (firestoreSuccess && !isOffline) {
-          // Logged in: Sync from Express Backend to LocalStorage
-          isSyncingRef.current = true;
+        if (syncPromiseRef.current) {
+          console.log("Sync already in progress.");
+          return;
+        }
+
+        const runSync = async () => {
           setSyncing(true);
+          isSyncingRef.current = true;
+          startMeasure("Background Profile Sync");
 
-          try {
-            // Sync Google profile photo back to Auth profile if it was overwritten by presets
-            const googleInfo = firebaseUser.providerData.find((p) => p.providerId === "google.com");
-            if (
-              googleInfo &&
-              googleInfo.photoURL &&
-              firebaseUser.photoURL !== googleInfo.photoURL
-            ) {
-              console.log(
-                "Restoring Firebase user photoURL to Google profile picture:",
-                googleInfo.photoURL,
-              );
-              try {
-                await updateProfile(firebaseUser, { photoURL: googleInfo.photoURL });
-              } catch (authErr) {
-                console.error("Failed to sync auth profile photoURL:", authErr);
-              }
-            }
+          const uid = firebaseUser.uid;
+          const isOffline = !navigator.onLine;
+          let firestoreSuccess = false;
 
-            // Fetch profile, result, and history from Express backend
-            const idToken = await firebaseUser.getIdToken();
-            const response = await fetch(`${API_URL}/api/profile`, {
-              headers: {
-                Authorization: `Bearer ${idToken}`,
-              },
+          // A. Standalone, fire-and-forget lastLoginAt update
+          if (!isOffline) {
+            const userDocRef = doc(db, "users", uid);
+            setDoc(userDocRef, { lastLoginAt: serverTimestamp() }, { merge: true }).catch((err) => {
+              console.error("[Firestore] Failed fire-and-forget lastLoginAt write:", err);
             });
+          }
 
-            if (!response.ok) {
-              throw new Error(`Failed to fetch profile: ${response.statusText}`);
-            }
+          // B. Fetch/create Firestore user document safely
+          try {
+            if (isOffline) throw new Error("offline");
+            const userDocRef = doc(db, "users", uid);
 
-            const data = await response.json();
+            // 2s timeout race to prevent hangs on flaky connections
+            const userDocSnap = await Promise.race([
+              getDoc(userDocRef),
+              new Promise<any>((_, reject) => setTimeout(() => reject(new Error("timeout")), 2000)),
+            ]);
 
-            if (data.profile) {
-              // Sync to LocalStorage (writes will trigger custom hg:store event)
-              localStorage.setItem("hg.profile.v1", JSON.stringify(data.profile));
-              if (data.result) {
-                localStorage.setItem("hg.result.v1", JSON.stringify(data.result));
-              } else {
-                localStorage.removeItem("hg.result.v1");
-              }
-              if (data.history) {
-                localStorage.setItem("hg.history.v1", JSON.stringify(data.history));
-              } else {
-                localStorage.removeItem("hg.history.v1");
-              }
-              // Notify hooks
-              window.dispatchEvent(new CustomEvent("hg:store"));
+            if (!userDocSnap.exists()) {
+              const initialDoc = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName || null,
+                hasCompletedAssessment: false,
+                createdAt: serverTimestamp(),
+                lastLoginAt: serverTimestamp(),
+              };
+              await setDoc(userDocRef, initialDoc);
+              setHasCompletedAssessment(false);
             } else {
-              // Backend has no profile: sync current localStorage to backend
+              const userData = userDocSnap.data();
+              setHasCompletedAssessment(!!userData?.hasCompletedAssessment);
+            }
+            firestoreSuccess = true;
+          } catch (dbErr) {
+            console.warn("[Firestore] Error reading user doc in background:", dbErr);
+            // Fallback: check local storage
+            try {
               const localProfile = localStorage.getItem("hg.profile.v1");
-              const localResult = localStorage.getItem("hg.result.v1");
-              const localHistory = localStorage.getItem("hg.history.v1");
+              setHasCompletedAssessment(!!localProfile);
+            } catch {
+              setHasCompletedAssessment(false);
+            }
+          }
 
-              if (localProfile) {
-                const body = {
-                  ...JSON.parse(localProfile),
-                  result: localResult ? JSON.parse(localResult) : null,
-                  history: localHistory ? JSON.parse(localHistory) : [],
-                };
+          // C. Fetch profile, result, and history from Express backend with timeout
+          if (firestoreSuccess && !isOffline) {
+            try {
+              const idToken = await firebaseUser.getIdToken();
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s Express sync timeout
 
-                const postResponse = await fetch(`${API_URL}/api/profile`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${idToken}`,
-                  },
-                  body: JSON.stringify(body),
-                });
+              startMeasure("Express Profile Fetch");
+              const response = await fetch(`${API_URL}/api/profile`, {
+                headers: {
+                  Authorization: `Bearer ${idToken}`,
+                },
+                signal: controller.signal,
+              });
+              clearTimeout(timeoutId);
+              endMeasure("Express Profile Fetch");
 
-                if (!postResponse.ok) {
-                  console.error("Failed to push initial local profile to backend");
+              if (!response.ok) {
+                throw new Error(`Profile request failed with status: ${response.status}`);
+              }
+
+              const data = await response.json();
+
+              if (data.profile) {
+                // Sync to LocalStorage (writes will trigger custom hg:store event)
+                localStorage.setItem("hg.profile.v1", JSON.stringify(data.profile));
+                if (data.result) {
+                  localStorage.setItem("hg.result.v1", JSON.stringify(data.result));
+                } else {
+                  localStorage.removeItem("hg.result.v1");
+                }
+                if (data.history) {
+                  localStorage.setItem("hg.history.v1", JSON.stringify(data.history));
+                } else {
+                  localStorage.removeItem("hg.history.v1");
+                }
+                // Notify hooks
+                window.dispatchEvent(new CustomEvent("hg:store"));
+              } else {
+                // Backend has no profile: sync current localStorage to backend
+                const localProfile = localStorage.getItem("hg.profile.v1");
+                const localResult = localStorage.getItem("hg.result.v1");
+                const localHistory = localStorage.getItem("hg.history.v1");
+
+                if (localProfile) {
+                  const body = {
+                    ...JSON.parse(localProfile),
+                    result: localResult ? JSON.parse(localResult) : null,
+                    history: localHistory ? JSON.parse(localHistory) : [],
+                  };
+
+                  await fetch(`${API_URL}/api/profile`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify(body),
+                  });
                 }
               }
-            }
-            console.log("Patient sync complete");
-          } catch (error: unknown) {
-            console.error("Error syncing with backend:", error);
-            toast.error("Could not sync assessment data with cloud account.");
-          } finally {
-            isSyncingRef.current = false;
-            setSyncing(false);
-            if (syncTimeoutRef.current) {
-              clearTimeout(syncTimeoutRef.current);
-              syncTimeoutRef.current = null;
+              hasSyncedThisSession.current = uid;
+            } catch (error) {
+              console.error("[Auth Context] Express sync failed:", error);
+              toast.error("Could not synchronize cloud record. Operating in offline mode.");
             }
           }
-        } else {
-          isSyncingRef.current = false;
-          setSyncing(false);
-          if (syncTimeoutRef.current) {
-            clearTimeout(syncTimeoutRef.current);
-            syncTimeoutRef.current = null;
-          }
-        }
 
-        setLoading(false);
-        console.log("Auth loading end");
+          setSyncing(false);
+          isSyncingRef.current = false;
+          syncPromiseRef.current = null;
+          endMeasure("Background Profile Sync");
+        };
+
+        syncPromiseRef.current = runSync();
       } else {
         setHasCompletedAssessment(null);
-        setLoading(false);
-        if (syncTimeoutRef.current) {
-          clearTimeout(syncTimeoutRef.current);
-          syncTimeoutRef.current = null;
-        }
+        setSyncing(false);
+        isSyncingRef.current = false;
+        hasSyncedThisSession.current = null;
+        syncPromiseRef.current = null;
         console.log("Auth loading end");
       }
     });
 
     return () => {
-      clearTimeout(timer);
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
       unsubscribe();
     };
   }, []);

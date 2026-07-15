@@ -2,6 +2,24 @@ import { db } from "../firebase-admin.js";
 import { GuardrailsService } from "./guardrails.service.js";
 import { RiskService, type UserProfile } from "./risk.service.js";
 import { RiskDriverService } from "./riskDriver.service.js";
+import crypto from "crypto";
+import { z } from "zod";
+
+const FullAdviceSchema = z.object({
+  risk: z.object({
+    diabetes: z.number(),
+    heartDisease: z.number(),
+    hypertension: z.number(),
+  }),
+  rationale: z.object({
+    diabetes: z.string(),
+    heartDisease: z.string(),
+    hypertension: z.string(),
+  }),
+  dietPlan: z.string(),
+  exercisePlan: z.string(),
+  preventionTips: z.string(),
+});
 
 const langName: Record<string, string> = {
   en: "English",
@@ -13,6 +31,7 @@ export interface CachedRecommendation {
   userId: string;
   type: string;
   content: any;
+  snapshotHash: string;
   profileSnapshot: {
     age: number;
     gender: string;
@@ -43,9 +62,22 @@ export class AIService {
   }
 
   /**
+   * Helper to generate SHA-256 hash of snapshot profile configurations deterministically
+   */
+  private static getSnapshotHash(snapshot: any): string {
+    const sorted = Object.keys(snapshot)
+      .sort()
+      .reduce((acc: any, key) => {
+        acc[key] = snapshot[key];
+        return acc;
+      }, {});
+    return crypto.createHash("sha256").update(JSON.stringify(sorted)).digest("hex");
+  }
+
+  /**
    * Helper to make raw fetch requests to Gemini API
    */
-  private static async callGemini(prompt: string, responseSchema?: any): Promise<string> {
+  private static async callGemini(prompt: string, responseSchema?: any, timeoutMs = 20000): Promise<string> {
     const key = this.getApiKey();
     if (!key) {
       throw new Error("Gemini API key is not configured.");
@@ -66,38 +98,44 @@ export class AIService {
       body.generationConfig.responseSchema = responseSchema;
     }
 
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      throw new Error(`Gemini API returned error ${resp.status}: ${errText}`);
-    }
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
-    const json: any = await resp.json();
-    const text =
-      json?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
-    if (!text) {
-      throw new Error("Empty response from Gemini");
-    }
-
-    return text;
-  }
-
-  /**
-   * Deep snapshot comparison to verify if cache is still valid
-   */
-  private static isCacheValid(cachedSnapshot: any, currentSnapshot: any): boolean {
-    const keys = Object.keys(currentSnapshot);
-    for (const key of keys) {
-      if (cachedSnapshot[key] !== currentSnapshot[key]) {
-        return false;
+      if (resp.status === 429) {
+        throw new Error("Gemini API rate limit exceeded (429).");
       }
+      if (resp.status >= 500) {
+        throw new Error(`Gemini API upstream server error (${resp.status}).`);
+      }
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Gemini API returned error ${resp.status}: ${errText}`);
+      }
+
+      const json: any = await resp.json();
+      const text =
+        json?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+      if (!text) {
+        throw new Error("Empty response from Gemini");
+      }
+
+      return text;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") {
+        throw new Error(`Gemini API request timed out after ${timeoutMs}ms.`);
+      }
+      throw err;
     }
-    return true;
   }
 
   /**
@@ -113,8 +151,9 @@ export class AIService {
       const docSnap = await docRef.get();
 
       if (docSnap.exists) {
-        const data = docSnap.data() as CachedRecommendation;
-        if (this.isCacheValid(data.profileSnapshot, currentSnapshot)) {
+        const data = docSnap.data();
+        const currentHash = this.getSnapshotHash(currentSnapshot);
+        if (data && data.snapshotHash === currentHash) {
           console.log(`Cache hit for user ${userId}, type: ${type}`);
           return data.content;
         }
@@ -136,10 +175,12 @@ export class AIService {
   ): Promise<void> {
     try {
       const docRef = db.collection("aiRecommendations").doc(`${userId}_${type}`);
+      const snapshotHash = this.getSnapshotHash(snapshot);
       await docRef.set({
         userId,
         type,
         content,
+        snapshotHash,
         profileSnapshot: snapshot,
         createdAt: new Date().toISOString(),
       });
@@ -275,6 +316,9 @@ Target Language: Respond ENTIRELY in ${targetLang}. Use clean markdown with head
     try {
       const text = await this.callGemini(prompt, schema);
       const parsed = JSON.parse(text);
+
+      // Validate schema via Zod
+      FullAdviceSchema.parse(parsed);
 
       // Sanitize AI outputs via Guardrails
       parsed.rationale.diabetes = GuardrailsService.sanitizeText(parsed.rationale.diabetes);

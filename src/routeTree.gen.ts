@@ -87,17 +87,17 @@ const AppScannerRoute = AppScannerRouteImport.update({
   id: '/scanner',
   path: '/scanner',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() => import('./routes/_app.scanner.lazy').then((d) => d.Route))
 const AppReportRoute = AppReportRouteImport.update({
   id: '/report',
   path: '/report',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() => import('./routes/_app.report.lazy').then((d) => d.Route))
 const AppProgressRoute = AppProgressRouteImport.update({
   id: '/progress',
   path: '/progress',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() => import('./routes/_app.progress.lazy').then((d) => d.Route))
 const AppProfileRoute = AppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -107,17 +107,23 @@ const AppExpertReviewRoute = AppExpertReviewRouteImport.update({
   id: '/expert-review',
   path: '/expert-review',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app.expert-review.lazy').then((d) => d.Route),
+)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app.dashboard.lazy').then((d) => d.Route),
+)
 const AppAssessmentRoute = AppAssessmentRouteImport.update({
   id: '/assessment',
   path: '/assessment',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app.assessment.lazy').then((d) => d.Route),
+)
 const AppActionPlanRoute = AppActionPlanRouteImport.update({
   id: '/action-plan',
   path: '/action-plan',

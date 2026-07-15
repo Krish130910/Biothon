@@ -94,7 +94,7 @@ async function writeProgressLog(uid: string, profile: any, analysis: any) {
 
 // GET /health - basic health check
 app.get("/health", (req, res) => {
-  res.json({ status: "OK", timestamp: new Date().toISOString() });
+  res.json({ status: "OK", version: "1.0.0", timestamp: new Date().toISOString() });
 });
 
 // GET /api/user/status - check assessment status
@@ -126,6 +126,187 @@ app.get("/api/user/status", requireAuth, async (req: AuthenticatedRequest, res) 
   } catch (err) {
     console.error("Error fetching user status:", err);
     return res.status(500).json({ error: "Database Error" });
+  }
+});
+
+// GET /api/dashboard/bootstrap - consolidate dashboard data retrieval
+app.get("/api/dashboard/bootstrap", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    return res.status(400).json({ error: "Bad Request: Missing User UID" });
+  }
+
+  try {
+    // Execute Firestore queries in parallel
+    const [profileSnap, userSnap, expertReviewSnap, coachNudgeSnap] = await Promise.all([
+      db.collection("profiles").doc(uid).get().catch((err: any) => {
+        console.error("Bootstrap: error fetching profile:", err);
+        return { exists: false, data: () => null };
+      }),
+      db.collection("users").doc(uid).get().catch((err: any) => {
+        console.error("Bootstrap: error fetching user:", err);
+        return { exists: false, data: () => null };
+      }),
+      db.collection("expertReviewRequests").where("userId", "==", uid).get().catch((err: any) => {
+        console.error("Bootstrap: error fetching expert reviews:", err);
+        return { empty: true, docs: [] };
+      }),
+      db.collection("coachingNudges").where("userId", "==", uid).orderBy("createdAt", "desc").limit(1).get().catch((err: any) => {
+        console.error("Bootstrap: error fetching coaching nudges:", err);
+        return { empty: true, docs: [] };
+      })
+    ]);
+
+    const profileData = profileSnap.exists ? profileSnap.data() : null;
+    const userData = userSnap.exists ? userSnap.data() : null;
+
+    // User status object
+    let userStatusObj: any = null;
+    if (userSnap.exists) {
+      userStatusObj = {
+        hasCompletedAssessment: !!userData?.hasCompletedAssessment,
+        assessmentCompletedAt: userData?.assessmentCompletedAt || null,
+        lastAssessmentUpdate: userData?.lastAssessmentUpdate || null,
+      };
+    } else {
+      const hasProfile = profileSnap.exists && !!profileData?.result;
+      userStatusObj = {
+        hasCompletedAssessment: hasProfile,
+        assessmentCompletedAt: hasProfile ? profileData?.updatedAt : null,
+        lastAssessmentUpdate: hasProfile ? profileData?.updatedAt : null,
+      };
+    }
+
+    // Expert review request status
+    let expertReviewObj: any = { requests: [] };
+    if (!expertReviewSnap.empty) {
+      const requests = expertReviewSnap.docs.map((doc: any) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      requests.sort(
+        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      expertReviewObj = { success: true, requests };
+    }
+
+    // Coach Nudge
+    let coachNudgeObj: any = null;
+    if (!coachNudgeSnap.empty) {
+      const nudge = coachNudgeSnap.docs[0].data();
+      coachNudgeObj = {
+        signalType: nudge.signalType,
+        insight: nudge.insight,
+        message: nudge.message,
+        nextAction: nudge.nextAction,
+        encouragement: nudge.encouragement,
+        createdAt: nudge.createdAt,
+      };
+    } else {
+      // Default deterministic nudge
+      coachNudgeObj = {
+        signalType: "risk_improved",
+        insight: "Your habits are currently well-balanced. Keep maintaining your daily routines!",
+        message: "Keep up the excellent lifestyle choices.",
+        nextAction: "Continue tracking your progress regularly.",
+        encouragement: "Great job!",
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    // Default parameters for calculations if profile is missing
+    const profileInput = {
+      age: profileData?.age || 35,
+      gender: profileData?.gender || "male",
+      heightCm: profileData?.heightCm || profileData?.height || 170,
+      weightKg: profileData?.weightKg || profileData?.weight || 72,
+      smoking: profileData?.smoking || "never",
+      exercise: profileData?.exercise || profileData?.exerciseLevel || "none",
+      familyHistory: profileData?.familyHistory || "",
+      symptoms: profileData?.symptoms || "",
+      alcohol: profileData?.alcohol || null,
+      diseases: profileData?.diseases || null,
+    };
+
+    // Calculate action impacts and risk drivers on-the-fly dynamically (avoid Gemini)
+    let actionImpactsList: any[] = [];
+    try {
+      const recommendedActions = calculateActionImpacts(profileInput);
+      actionImpactsList = recommendedActions.slice(0, 3);
+    } catch (err) {
+      console.error("Bootstrap: error calculating action impacts:", err);
+    }
+
+    let riskDriversList: any[] = [];
+    try {
+      const driverResult = RiskDriverService.analyzeRiskDrivers(profileInput);
+      riskDriversList = driverResult.topDrivers;
+    } catch (err) {
+      console.error("Bootstrap: error analyzing risk drivers:", err);
+    }
+
+    // Profile History fallback logic
+    let historyList: any[] = [];
+    if (profileData) {
+      try {
+        const logsSnap = await db
+          .collection("progressLogs")
+          .where("userId", "==", uid)
+          .orderBy("createdAt", "asc")
+          .get();
+
+        if (!logsSnap.empty) {
+          historyList = logsSnap.docs.map((doc: any) => {
+            const log = doc.data();
+            return {
+              date: log.createdAt,
+              overallScore: log.overallRisk,
+              bmi: log.bmi,
+              weightKg: log.weight,
+              risks: {
+                diabetes: log.diabetesRisk,
+                heartDisease: log.heartRisk,
+                hypertension: log.hypertensionRisk,
+              },
+              smoking: log.smoking,
+              exercise: log.exercise,
+            };
+          });
+        }
+      } catch (historyErr) {
+        console.warn("Bootstrap: history fallback error:", historyErr);
+        historyList = profileData.history || [];
+      }
+    }
+
+    const responsePayload = {
+      success: true,
+      profile: profileData ? {
+        age: profileData.age,
+        gender: profileData.gender,
+        heightCm: profileData.heightCm || profileData.height,
+        weightKg: profileData.weightKg || profileData.weight,
+        smoking: profileData.smoking,
+        exercise: profileData.exercise || profileData.exerciseLevel,
+        familyHistory: profileData.familyHistory,
+        symptoms: profileData.symptoms,
+        alcohol: profileData.alcohol || undefined,
+        diseases: profileData.diseases || undefined,
+        language: profileData.language || "en",
+      } : null,
+      result: profileData?.result || null,
+      history: historyList,
+      userStatus: userStatusObj,
+      riskDrivers: riskDriversList,
+      actionImpacts: actionImpactsList,
+      expertReview: expertReviewObj,
+      coachNudge: coachNudgeObj,
+    };
+
+    return res.json(responsePayload);
+  } catch (err) {
+    console.error("Dashboard bootstrap endpoint error:", err);
+    return res.status(500).json({ error: "Bootstrap Error: Failed to gather dashboard data" });
   }
 });
 
@@ -429,7 +610,7 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
       diseases: data.diseases || null,
     });
 
-    // Calculate ML risk supporting category before calling AIService.generateFullAdvice
+    // Calculate ML risk supporting category before generating plans
     let mlRisk: any = null;
     try {
       mlRisk = MlRiskService.classifyMlRisk(
@@ -459,9 +640,8 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
       };
     }
 
-    // Call AIService to get AI-enriched rationale and plans, passing mlRisk as 4th parameter
-    const enriched = await AIService.generateFullAdvice(
-      uid,
+    // Generate immediate deterministic fallback plans (extremely fast)
+    const deterministic = RiskService.generateDeterministicPlans(
       {
         age: data.age,
         gender: data.gender,
@@ -473,21 +653,19 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
         symptoms: data.symptoms,
         alcohol: data.alcohol || null,
         diseases: data.diseases || null,
-        language: data.language || "en",
       },
       {
         diabetes: analysis.diabetesRisk.risk,
         heart: analysis.heartRisk.risk,
         hypertension: analysis.hypertensionRisk.risk,
-      },
-      mlRisk,
+      }
     );
 
-    // Merge enriched rationales and plans into analysis
-    analysis.rationale = enriched.rationale;
-    analysis.dietPlan = enriched.dietPlan;
-    analysis.exercisePlan = enriched.exercisePlan;
-    analysis.preventionTips = enriched.preventionTips;
+    // Merge deterministic rationales and plans into analysis
+    analysis.rationale = deterministic.rationale;
+    analysis.dietPlan = deterministic.dietPlan;
+    analysis.exercisePlan = deterministic.exercisePlan;
+    analysis.preventionTips = deterministic.preventionTips;
 
     // Write assessment record in the 'assessments' collection
     const assessmentRef = db.collection("assessments").doc();
@@ -519,7 +697,7 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
     };
     await assessmentRef.set(assessmentData);
 
-    // Save profile data (including enriched result object) in 'profiles/{uid}'
+    // Save profile data (with deterministic result object) in 'profiles/{uid}'
     const docRef = db.collection("profiles").doc(uid);
     const updatedProfile = {
       age: data.age,
@@ -552,6 +730,7 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
         actionPriorities: analysis.actionPriorities,
         bmi: analysis.bmi,
         mlRisk: mlRisk || undefined,
+        isAiEnriched: false, // Flag indicating AI enrichment is pending
       },
       updatedAt: new Date().toISOString(),
     };
@@ -572,6 +751,7 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
 
     // Attach mlRisk directly to the analysis response payload so it is returned to the client immediately
     (analysis as any).mlRisk = mlRisk || null;
+    (analysis as any).isAiEnriched = false;
 
     return res.json({
       success: true,
@@ -581,6 +761,122 @@ app.post("/api/risk/calculate", requireAuth, async (req: AuthenticatedRequest, r
   } catch (err: any) {
     console.error("Risk calculation API error:", err);
     return res.status(500).json({ error: "Calculation Error: Failed to compute health risks" });
+  }
+});
+
+// POST /api/risk/advice - generate and cache AI advice on top of clinical calculation
+app.post("/api/risk/advice", requireAuth, async (req: AuthenticatedRequest, res) => {
+  const uid = req.user?.uid;
+  if (!uid) {
+    return res.status(400).json({ error: "Bad Request: Missing User UID" });
+  }
+
+  try {
+    const parsed = ProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Validation Error", details: parsed.error.format() });
+    }
+
+    const data = parsed.data;
+
+    // Run clinical calculations briefly to get clean scores for prompt
+    const analysis = RiskService.analyze({
+      age: data.age,
+      gender: data.gender,
+      heightCm: data.heightCm,
+      weightKg: data.weightKg,
+      smoking: data.smoking,
+      exercise: data.exercise,
+      familyHistory: data.familyHistory,
+      symptoms: data.symptoms,
+      alcohol: data.alcohol || null,
+      diseases: data.diseases || null,
+    });
+
+    let mlRisk: any = null;
+    try {
+      mlRisk = MlRiskService.classifyMlRisk(
+        {
+          age: data.age,
+          gender: data.gender,
+          heightCm: data.heightCm,
+          weightKg: data.weightKg,
+          smoking: data.smoking,
+          exercise: data.exercise,
+          familyHistory: data.familyHistory,
+          symptoms: data.symptoms,
+          alcohol: data.alcohol || null,
+          diseases: data.diseases || null,
+          language: data.language || "en",
+        },
+        analysis,
+      );
+    } catch (mlErr) {
+      mlRisk = null;
+    }
+
+    // Call AIService (which uses AbortController & 20s timeout)
+    const enriched = await AIService.generateFullAdvice(
+      uid,
+      {
+        age: data.age,
+        gender: data.gender,
+        heightCm: data.heightCm,
+        weightKg: data.weightKg,
+        smoking: data.smoking,
+        exercise: data.exercise,
+        familyHistory: data.familyHistory,
+        symptoms: data.symptoms,
+        alcohol: data.alcohol || null,
+        diseases: data.diseases || null,
+        language: data.language || "en",
+      },
+      {
+        diabetes: analysis.diabetesRisk.risk,
+        heart: analysis.heartRisk.risk,
+        hypertension: analysis.hypertensionRisk.risk,
+      },
+      mlRisk,
+    );
+
+    // Save the enriched advice to the profile in Firestore
+    const docRef = db.collection("profiles").doc(uid);
+    const updatedProfile = {
+      result: {
+        risk: {
+          diabetes: analysis.diabetesRisk.risk,
+          heartDisease: analysis.heartRisk.risk,
+          hypertension: analysis.hypertensionRisk.risk,
+        },
+        rationale: enriched.rationale,
+        dietPlan: enriched.dietPlan,
+        exercisePlan: enriched.exercisePlan,
+        preventionTips: enriched.preventionTips,
+        overallScore: analysis.overallRisk,
+        overallRisk: analysis.overallRiskLabel,
+        factors: analysis.factors,
+        actionPriorities: analysis.actionPriorities,
+        bmi: analysis.bmi,
+        mlRisk: mlRisk || undefined,
+        isAiEnriched: true,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    await docRef.set(updatedProfile, { merge: true });
+
+    return res.json({
+      success: true,
+      advice: {
+        rationale: enriched.rationale,
+        dietPlan: enriched.dietPlan,
+        exercisePlan: enriched.exercisePlan,
+        preventionTips: enriched.preventionTips,
+        isAiEnriched: true,
+      },
+    });
+  } catch (err: any) {
+    console.error("AI Advice API error:", err);
+    return res.status(500).json({ error: "Advice Error: Failed to generate AI recommendations" });
   }
 });
 
