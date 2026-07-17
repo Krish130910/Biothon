@@ -1,22 +1,22 @@
-import { type UserProfile, type CompleteRiskAnalysis } from "./risk.service.js";
+import { type UserProfile, type CompleteRiskAnalysis } from "../services/risk.service.js";
 
-export interface MlRiskResult {
-  mlRiskCategory: "low" | "moderate" | "high";
-  confidence: number; // 0 - 100
+export interface HeuristicRiskResult {
+  riskCategory: "low" | "moderate" | "high";
+  confidence: number;
   supportingFactors: string[];
-  modelVersion: "ml-risk-v1";
+  version: "heuristic-v1";
   explanation: string;
 }
 
-export class MlRiskService {
+export class ExperimentalRiskHeuristicService {
   /**
-   * Classify user risk using an ML-style deterministic weighted classifier.
+   * Classify user risk using an experimental deterministic weighted heuristic classifier.
    * Supports existing clinical scoring and provides explainable insights.
    */
-  static classifyMlRisk(
+  static classifyRisk(
     profile: UserProfile,
     clinicalRiskResult: CompleteRiskAnalysis,
-  ): MlRiskResult {
+  ): HeuristicRiskResult {
     let score = 0;
     const factors: string[] = [];
     const lang = profile.language || "en";
@@ -43,7 +43,7 @@ export class MlRiskService {
       if (lang === "hi") {
         factors.push("गतिहीन जीवन शैली (कोई व्यायाम दर्ज नहीं)");
       } else if (lang === "gu") {
-        factors.push("બેઠાડુ જીવનશૈલી (કોઈ કસરત નોંધાયેલ નથી)");
+        factors.push("બેઠાડુ જીવનશૈલી (કોઈ કસરત નોંધayેલ નથી)");
       } else {
         factors.push("Sedentary lifestyle");
       }
@@ -180,11 +180,11 @@ export class MlRiskService {
     }
 
     // Classify
-    let mlRiskCategory: "low" | "moderate" | "high" = "low";
+    let riskCategory: "low" | "moderate" | "high" = "low";
     if (score >= 65) {
-      mlRiskCategory = "high";
+      riskCategory = "high";
     } else if (score >= 35) {
-      mlRiskCategory = "moderate";
+      riskCategory = "moderate";
     }
 
     // Determine confidence
@@ -211,11 +211,11 @@ export class MlRiskService {
 
     // Clinical agreement check
     const clinicalLabel = (clinicalRiskResult.overallRiskLabel || "Low").toLowerCase();
-    if (mlRiskCategory === clinicalLabel) {
+    if (riskCategory === clinicalLabel) {
       confidence += 10;
     } else if (
-      (mlRiskCategory === "low" && clinicalLabel === "high") ||
-      (mlRiskCategory === "high" && clinicalLabel === "low")
+      (riskCategory === "low" && clinicalLabel === "high") ||
+      (riskCategory === "high" && clinicalLabel === "low")
     ) {
       confidence -= 20;
     } else {
@@ -227,7 +227,7 @@ export class MlRiskService {
 
     // Localize explanation
     let explanation = "";
-    if (mlRiskCategory === "low") {
+    if (riskCategory === "low") {
       if (lang === "hi") {
         explanation =
           "आपकी प्रोफ़ाइल इष्टतम सीमाओं के भीतर मेट्रिक्स के साथ कम जोखिम स्तर का सुझाव देती है। अपनी सक्रिय और संतुलित दिनचर्या बनाए रखना जारी रखें।";
@@ -238,7 +238,7 @@ export class MlRiskService {
         explanation =
           "Your profile suggests a low risk level with metrics within optimal ranges. Continue maintaining your active and balanced routine.";
       }
-    } else if (mlRiskCategory === "moderate") {
+    } else if (riskCategory === "moderate") {
       if (lang === "hi") {
         explanation =
           "आपकी जीवनशैली या बायोमेट्रिक कारकों में कुछ बढ़े हुए संकेतक पाए गए हैं। हम नियमित शारीरिक गतिविधि और संतुलित आहार को शामिल करने की सलाह देते हैं।";
@@ -255,7 +255,7 @@ export class MlRiskService {
           "आपके नैदानिक स्कोर और जीवनशैली मेट्रिक्स में कई उच्च जोखिम वाले संकेतक पाए गए हैं। हम व्यक्तिगत नैदानिक समीक्षा के लिए स्वास्थ्य पेशेवर से परामर्श करने की दृढ़ सलाह देते हैं।";
       } else if (lang === "gu") {
         explanation =
-          "તમારા ક્લિનિકલ સ્કોર અને જીવનશૈલી મેટ્રિક્સમાં બહુવિધ ઉચ્ચ-જોખમ સૂચકાંકો જોવા મળ્યા છે. અમે વ્યક્તિગત નિદાન સમીક્ષા માટે આરોગ્ય વ્યાવસાયિકની સલાહ લેવાની ભારપૂર્વક ભલામણ કરીએ છીએ.";
+          "તમારો ક્લિનિકલ સ્કોર અને જીવનશૈલી મેટ્રિક્સમાં બહુવિધ ઉચ્ચ-જોખમ સૂચકાંકો જોવા મળ્યા છે. અમે વ્યક્તિગત નિદાન સમીક્ષા માટે આરોગ્ય વ્યાવસાયિકની સલાહ લેવાની ભારપૂર્વક ભલામણ કરીએ છીએ.";
       } else {
         explanation =
           "Multiple high-risk indicators were detected in your clinical score and lifestyle metrics. We strongly advise consulting a healthcare professional for a personalized diagnostic review.";
@@ -263,10 +263,10 @@ export class MlRiskService {
     }
 
     return {
-      mlRiskCategory,
+      riskCategory,
       confidence,
-      supportingFactors: factors.slice(0, 3), // return top supporting factors
-      modelVersion: "ml-risk-v1",
+      supportingFactors: factors.slice(0, 3),
+      version: "heuristic-v1",
       explanation,
     };
   }
