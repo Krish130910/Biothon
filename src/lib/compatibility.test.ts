@@ -176,15 +176,14 @@ describe("Frontend Compatibility & Isolation Tests", () => {
     
     // Assert all dashboard headings are rendered
     expect(html).toContain("Risk Dashboard");
-    expect(html).toContain("Overall Risk Score");
-    expect(html).toContain("Lifestyle Impact");
-    expect(html).toContain("Action Priorities");
-    expect(html).toContain("Expert Review");
+    expect(html).toContain("Overall Health Score");
+    expect(html).toContain("Top Risk Contributors");
+    expect(html).toContain("Priority Actions");
 
-    // Assert three condition cards/sections are rendered
-    expect(html).toContain("Diabetes Risk");
-    expect(html).toContain("Cardiovascular Risk");
-    expect(html).toContain("Hypertension Risk");
+    // Assert condition breakdown sections are rendered
+    expect(html).toContain("Diabetes");
+    expect(html).toContain("Heart Disease");
+    expect(html).toContain("Hypertension");
 
     // Assert no ML card is present
     expect(html).not.toContain("mlRisk");

@@ -1,15 +1,20 @@
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useHealthResult, useProfile, useHistory } from "@/lib/health-store";
 import { useLanguage, tr } from "@/lib/i18n";
-import { auth, db, isConfigured } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
+import {
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  ResponsiveContainer,
+} from "recharts";
 import {
   ArrowRight,
   Brain,
@@ -20,51 +25,211 @@ import {
   RefreshCw,
   Loader2,
   Activity,
-  ScanLine,
-  LifeBuoy,
   ClipboardList,
+  Upload,
+  FileText,
+  AlertTriangle,
+  Star,
+  CheckCircle2,
+  RotateCcw,
+  HeartPulse,
+  Scale,
+  Droplets,
 } from "lucide-react";
-import { GlassIcons } from "@/components/ui/glass-icons";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { startMeasure, endMeasure } from "@/lib/timing";
-import { EmptyState, LedgerTable, RiskLedgerTable } from "./_app.dashboard";
+import { EmptyState } from "./_app.dashboard";
 import SplitText from "@/components/ui/split-text";
+import { cn } from "@/lib/utils";
 
 export const Route = createLazyFileRoute("/_app/dashboard")({
   component: Dashboard,
 });
 
-function AnimatedScore({ score }: { score: number }) {
+// ─── Animated counter ──────────────────────────────────────────────────────
+function AnimatedScore({ score, suffix = "" }: { score: number; suffix?: string }) {
   const [current, setCurrent] = useState(0);
   useEffect(() => {
-    let start = 0;
-    const end = score;
-    if (start === end) {
-      setCurrent(end);
-      return;
-    }
-    const totalDuration = 800; // ms
-    const incrementTime = Math.max(Math.floor(totalDuration / end), 12);
-    const timer = setInterval(() => {
-      start += 1;
-      setCurrent(start);
-      if (start >= end) clearInterval(timer);
-    }, incrementTime);
-    return () => clearInterval(timer);
+    let v = 0;
+    const duration = 900;
+    const step = Math.max(Math.floor(duration / score), 10);
+    const t = setInterval(() => {
+      v += 1;
+      setCurrent(v);
+      if (v >= score) clearInterval(t);
+    }, step);
+    return () => clearInterval(t);
   }, [score]);
-  return <>{current}</>;
+  return <>{current}{suffix}</>;
 }
 
-const CHART_AMBER = "oklch(0.74 0.15 70)";
-const CHART_RED = "oklch(0.58 0.21 25)";
-const CHART_GREEN = "oklch(0.62 0.13 155)";
+// ─── Color helpers ────────────────────────────────────────────────────────
+const CHART_GREEN = "#10b981";
+const CHART_AMBER = "#f59e0b";
+const CHART_RED   = "#ef4444";
 
-function colorFor(score: number) {
+function riskColor(score: number) {
   if (score < 33) return CHART_GREEN;
   if (score < 66) return CHART_AMBER;
   return CHART_RED;
 }
 
+function riskLabel(score: number) {
+  if (score < 33) return "Low";
+  if (score < 66) return "Moderate";
+  return "High";
+}
+
+// ─── Star rating component ─────────────────────────────────────────────────
+function Stars({ count }: { count: number }) {
+  return (
+    <span className="flex gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star
+          key={i}
+          className={cn(
+            "h-3 w-3",
+            i < count ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"
+          )}
+        />
+      ))}
+    </span>
+  );
+}
+
+// ─── Medical disclaimer card ──────────────────────────────────────────────
+function MedicalDisclaimer() {
+  return (
+    <div className="rounded-2xl border border-amber-400/40 bg-amber-400/5 p-5 flex gap-4">
+      <div className="shrink-0 mt-0.5">
+        <div className="h-9 w-9 rounded-xl bg-amber-400/15 flex items-center justify-center">
+          <AlertTriangle className="h-4.5 w-4.5 text-amber-500" strokeWidth={2} />
+        </div>
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1.5">
+          ⚕ Medical Disclaimer
+        </p>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          HealthGuard provides <span className="font-semibold text-foreground">educational</span> risk
+          assessments and preventive insights. It is{" "}
+          <span className="font-semibold text-foreground">NOT</span> intended to diagnose, treat, or
+          replace professional medical advice. Always consult a{" "}
+          <span className="font-semibold text-foreground">licensed physician</span> for diagnosis and treatment.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Empty / onboarding hero shown before any assessment ─────────────────
+function HeroOnboarding() {
+  const navigate = useNavigate();
+  return (
+    <div className="w-full px-4 py-3 space-y-4">
+      {/* Hero */}
+      <div className="text-center space-y-3 pt-2">
+        <Badge variant="secondary" className="rounded-full text-[11px] font-semibold">
+          Clinical Risk Engine
+        </Badge>
+        <SplitText
+          text="Risk Dashboard"
+          className="font-display text-4xl sm:text-5xl font-bold tracking-tight text-foreground"
+          delay={40}
+          duration={0.65}
+          ease="power3.out"
+          splitType="chars"
+          tag="h1"
+          textAlign="center"
+        />
+        <p className="text-muted-foreground text-base max-w-sm mx-auto leading-relaxed">
+          Understand your health.{" "}
+          <span className="text-foreground font-medium">Detect risks early.</span>{" "}
+          Take preventive action.
+        </p>
+      </div>
+
+      {/* Two path cards */}
+      <div>
+        <p className="text-center text-sm font-semibold text-muted-foreground mb-5">
+          How would you like to begin?
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {/* Card 1 — Blood Report */}
+          <button
+            onClick={() => navigate({ to: "/report" })}
+            className="group text-left rounded-2xl border border-border bg-surface p-6 hover:border-teal/40 hover:bg-teal/[0.03] transition-all duration-200 flex flex-col gap-4 shadow-sm hover:shadow-md"
+          >
+            <div className="h-11 w-11 rounded-xl bg-teal/10 border border-teal/20 flex items-center justify-center text-teal">
+              <Upload className="h-5 w-5" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <h2 className="font-display font-bold text-base text-foreground">Upload Blood Report</h2>
+              <ul className="text-xs text-muted-foreground space-y-1 mt-2 leading-relaxed">
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-teal shrink-0" /> AI extracts lab values automatically</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-teal shrink-0" /> Instant health analysis</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-teal shrink-0" /> OCR + value verification</li>
+              </ul>
+            </div>
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-teal group-hover:gap-3 transition-all duration-200">
+              Upload Report <ArrowRight className="h-4 w-4" />
+            </div>
+          </button>
+
+          {/* Card 2 — Assessment */}
+          <button
+            onClick={() => navigate({ to: "/assessment" })}
+            className="group text-left rounded-2xl border border-border bg-surface p-6 hover:border-primary/40 hover:bg-primary/[0.03] transition-all duration-200 flex flex-col gap-4 shadow-sm hover:shadow-md"
+          >
+            <div className="h-11 w-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+              <ClipboardList className="h-5 w-5" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <h2 className="font-display font-bold text-base text-foreground">Complete Assessment</h2>
+              <ul className="text-xs text-muted-foreground space-y-1 mt-2 leading-relaxed">
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" /> Lifestyle questionnaire</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" /> Symptoms &amp; family history</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" /> Personalized risk score</li>
+              </ul>
+            </div>
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-primary group-hover:gap-3 transition-all duration-200">
+              Start Assessment <ArrowRight className="h-4 w-4" />
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Combined option */}
+      <div className="rounded-2xl border border-border bg-gradient-to-br from-teal/5 via-surface to-primary/5 p-6 text-center space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Want the most accurate result?
+        </p>
+        <div className="flex items-center justify-center gap-6 flex-wrap">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <CheckCircle2 className="h-4 w-4 text-teal" /> Upload Blood Report
+          </div>
+          <span className="text-muted-foreground font-bold">+</span>
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <CheckCircle2 className="h-4 w-4 text-primary" /> Complete Assessment
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+          Combining both provides the most personalized health insights.
+        </p>
+        <Button
+          onClick={() => navigate({ to: "/report" })}
+          className="bg-teal text-white hover:bg-teal/90 font-semibold px-8 h-10 rounded-xl shadow-sm"
+        >
+          Get Complete Analysis
+        </Button>
+      </div>
+
+      <MedicalDisclaimer />
+    </div>
+  );
+}
+
+// ─── Main Dashboard with Results ─────────────────────────────────────────
 function Dashboard() {
   const currentLang = useLanguage();
   const navigate = useNavigate();
@@ -76,15 +241,8 @@ function Dashboard() {
   const [result, setResult] = useHealthResult();
   const [profile, setProfile] = useProfile();
   const [, setHistory] = useHistory();
+  const { loading: authLoading, syncing: authSyncing } = useAuth();
 
-  const {
-    loading: authLoading,
-    syncing: authSyncing,
-    hasCompletedAssessment,
-    setHasCompletedAssessment,
-  } = useAuth();
-
-  // Action Impact Engine State
   interface ActionImpact {
     id: string;
     title: string;
@@ -98,7 +256,6 @@ function Dashboard() {
   }
   const [actionImpacts, setActionImpacts] = useState<ActionImpact[]>([]);
 
-  // Coach nudge states
   interface CoachNudge {
     signalType: string;
     insight: string;
@@ -109,25 +266,19 @@ function Dashboard() {
   const [coachNudge, setCoachNudge] = useState<CoachNudge | null>(null);
   const [nudgeRefreshing, setNudgeRefreshing] = useState(false);
 
-  // Risk Drivers State
   interface RiskDriver {
     factor: string;
     contribution: number;
     modifiable: boolean;
   }
   const [riskDrivers, setRiskDrivers] = useState<RiskDriver[]>([]);
-
-  // Expert Review Status State
   const [expertReviewStatus, setExpertReviewStatus] = useState<string | null>(null);
-
-  // User Assessment status state
   const [userStatus, setUserStatus] = useState<{
     hasCompletedAssessment: boolean;
     assessmentCompletedAt: string | null;
     lastAssessmentUpdate: string | null;
   } | null>(null);
 
-  // Bootstrap fetching state
   const [bootstrapLoading, setBootstrapLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [isWaking, setIsWaking] = useState(false);
@@ -136,142 +287,110 @@ function Dashboard() {
   const hasValidHealthResult =
     Boolean(result) && typeof result?.overallRisk === "string" && Boolean(profile);
 
-  // Consolidated Bootstrap Fetch on Mount/Retry
+  // Bootstrap fetch
   useEffect(() => {
     let active = true;
     const initiatingUid = auth.currentUser?.uid;
-    const checkState = () => {
-      return active && auth.currentUser && auth.currentUser.uid === initiatingUid;
-    };
+    const checkState = () =>
+      active && auth.currentUser && auth.currentUser.uid === initiatingUid;
 
     setBootstrapLoading(true);
     setBootstrapError(null);
 
-    // If it takes more than 2.5s, display Render container cold start wakeup warning
     const wakingTimer = setTimeout(() => {
       if (checkState()) setIsWaking(true);
     }, 2500);
 
-    const loadDashboard = async () => {
+    const load = async () => {
       try {
         startMeasure("Dashboard Bootstrap");
-        const data = await apiClient.get<any>("/api/dashboard/bootstrap", {
-          timeoutMs: 35000, // Render cold start timeout
-        });
+        const data = await apiClient.get<any>("/api/dashboard/bootstrap", { timeoutMs: 35000 });
         endMeasure("Dashboard Bootstrap");
-
         clearTimeout(wakingTimer);
         if (!checkState()) return;
-
         setIsWaking(false);
         setBootstrapLoading(false);
-
         if (data.profile) setProfile(data.profile);
         if (data.result) setResult(data.result);
         if (data.history) setHistory(data.history);
-
         if (data.userStatus) setUserStatus(data.userStatus);
         if (data.riskDrivers) setRiskDrivers(data.riskDrivers);
         if (data.actionImpacts) setActionImpacts(data.actionImpacts);
         if (data.coachNudge) setCoachNudge(data.coachNudge);
-        if (data.expertReview && data.expertReview.requests.length > 0) {
+        if (data.expertReview?.requests?.length > 0)
           setExpertReviewStatus(data.expertReview.requests[0].status);
-        }
       } catch (err: any) {
         clearTimeout(wakingTimer);
         if (!checkState()) return;
         setIsWaking(false);
         setBootstrapLoading(false);
-        console.error("Failed to bootstrap dashboard:", err);
-
         let msg = "Failed to load dashboard parameters.";
         if (err instanceof ApiError) {
-          if (err.type === "cold_start") {
-            msg = "The health service is starting. Your dashboard will load shortly.";
-          } else if (err.type === "timeout") {
-            msg = "Dashboard request timed out. Retrying may help.";
-          } else if (err.type === "network") {
-            msg = "Network connection failed. Please check your internet connectivity.";
-          }
+          if (err.type === "cold_start") msg = "The health service is starting. Your dashboard will load shortly.";
+          else if (err.type === "timeout") msg = "Dashboard request timed out. Retrying may help.";
+          else if (err.type === "network") msg = "Network connection failed. Please check your internet connectivity.";
         }
         setBootstrapError(msg);
       }
     };
-
-    loadDashboard();
-
-    return () => {
-      active = false;
-    };
+    load();
+    return () => { active = false; };
   }, [retryKey, setProfile, setResult, setHistory]);
 
-  // Handle manual retry triggers
-  const handleRetry = () => {
-    setRetryKey((prev) => prev + 1);
-  };
+  const handleRetry = () => setRetryKey((p) => p + 1);
 
-  // Generate fresh AI Coach Nudge (decapsulated from bootstrap)
   const refreshCoachNudge = async () => {
-    const initiatingUid = auth.currentUser?.uid;
+    const uid = auth.currentUser?.uid;
     setNudgeRefreshing(true);
     try {
       startMeasure("AI Coach Nudge Refresh");
-      const data = await apiClient.get<any>("/api/coach/behavior", {
-        timeoutMs: 25000, // Gemini timeout limit
-      });
+      const data = await apiClient.get<any>("/api/coach/behavior", { timeoutMs: 25000 });
       endMeasure("AI Coach Nudge Refresh");
-
-      if (auth.currentUser && auth.currentUser.uid === initiatingUid) {
-        if (data.success && data.nudge) {
-          setCoachNudge(data.nudge);
-          toast.success("Coach recommendations refreshed successfully.");
-        }
+      if (auth.currentUser?.uid === uid && data.success && data.nudge) {
+        setCoachNudge(data.nudge);
+        toast.success("Coach recommendations refreshed.");
       }
-    } catch (err) {
-      console.error("Failed to generate fresh nudge:", err);
+    } catch {
       toast.error("Unable to generate fresh AI advice at this time.");
     } finally {
       setNudgeRefreshing(false);
     }
   };
 
-  // Dynamically load PDF download libraries
+  // PDF download
   async function download() {
     if (!result || !profile) return;
-    const toastId = toast.loading("Preparing health report PDF download...");
+    const toastId = toast.loading("Preparing health report PDF...");
     try {
-      // Dynamic imports to code-split PDF libraries from the main bundle
       const { default: jsPDF } = await import("jspdf");
-
       const doc = new jsPDF({ unit: "pt", format: "a4" });
       const margin = 48;
       const pageW = doc.internal.pageSize.getWidth();
       const cw = pageW - margin * 2;
       let y = margin;
 
-      // Header band
+      // Cover band
       doc.setFillColor(11, 30, 63);
-      doc.rect(0, 0, pageW, 88, "F");
+      doc.rect(0, 0, pageW, 100, "F");
       doc.setTextColor(255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(20);
-      doc.text("Personalized Preventive-Health Assessment", margin, 40);
+      doc.text("HealthGuard — Personalized Health Assessment", margin, 42);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      doc.text("Lifestyle Screening Index Report", margin, 58);
-      doc.setFontSize(9);
-      doc.text(new Date().toLocaleString(), pageW - margin, 58, { align: "right" });
-      y = 120;
+      doc.text("Preventive Health Screening Report", margin, 60);
+      doc.text(new Date().toLocaleString(), pageW - margin, 60, { align: "right" });
+      y = 128;
       doc.setTextColor(20);
 
-      const ensureSpace = (heightNeeded: number) => {
-        if (y + heightNeeded > 770) {
+      const ensureSpace = (h: number) => {
+        if (y + h > 770) {
           doc.addPage();
           y = margin + 20;
           doc.setFont("helvetica", "normal");
           doc.setFontSize(8);
           doc.setTextColor(140);
-          doc.text("HealthGuard Printable Report (cont.)", margin, margin - 15);
+          doc.text("HealthGuard Report (cont.)", margin, margin - 15);
           doc.setDrawColor(230);
           doc.line(margin, margin - 10, pageW - margin, margin - 10);
         }
@@ -302,7 +421,7 @@ function Dashboard() {
       };
 
       // Profile
-      title("Your Profile Parameters");
+      title("Patient Profile");
       [
         `Age: ${profile.age}    Gender: ${profile.gender}`,
         `Height: ${profile.heightCm} cm    Weight: ${profile.weightKg} kg    BMI: ${result.bmi.toFixed(1)}`,
@@ -310,37 +429,25 @@ function Dashboard() {
         `Family history: ${profile.familyHistory || "none reported"}`,
         `Reported symptoms: ${profile.symptoms || "none reported"}`,
       ].forEach((l) => para(l));
-      y += 10;
+      y += 12;
 
       // Overall risk
-      title("Overall Screening Index");
+      title("Overall Health Score");
       ensureSpace(60);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(28);
-      const color =
-        result.overallRisk === "Low"
-          ? [34, 139, 87]
-          : result.overallRisk === "Moderate"
-            ? [200, 130, 30]
-            : [200, 60, 40];
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text(`${result.overallScore}/80`, margin, y);
-      y += 26;
-      doc.setFontSize(11);
-      const tier = result.overallRisk === "High" ? "Elevated" : result.overallRisk;
-      doc.text(`Screening Tier: ${tier}`, margin, y);
-      y += 22;
+      const c = result.overallRisk === "Low" ? [34, 139, 87] : result.overallRisk === "Moderate" ? [200, 130, 30] : [200, 60, 40];
+      doc.setTextColor(c[0], c[1], c[2]);
+      doc.text(`${result.overallScore}/80 — ${result.overallRisk} Risk`, margin, y);
+      y += 30;
       doc.setTextColor(20);
 
       // Per-condition
-      title("Per-Condition Screening Index");
-      (
-        [
-          ["Diabetes screening index", result.risk.diabetes, result.rationale.diabetes],
-          ["Heart Disease screening index", result.risk.heartDisease, result.rationale.heartDisease],
-          ["Hypertension screening index", result.risk.hypertension, result.rationale.hypertension],
-        ] as const
-      ).forEach(([name, score, why]) => {
+      title("Risk Breakdown");
+      ([ ["Diabetes", result.risk.diabetes, result.rationale.diabetes],
+         ["Heart Disease", result.risk.heartDisease, result.rationale.heartDisease],
+         ["Hypertension", result.risk.hypertension, result.rationale.hypertension],
+      ] as const).forEach(([name, score, why]) => {
         ensureSpace(40);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
@@ -353,44 +460,46 @@ function Dashboard() {
       });
 
       // Plans
-      const sections: Array<[string, string]> = [
-        ["Diet plan", result.dietPlan || ""],
-        ["Exercise plan", result.exercisePlan || ""],
-        ["Prevention recommendations", result.preventionTips || ""],
-      ];
-      sections.forEach(([t, body]) => {
+      [["Diet Plan", result.dietPlan || ""],
+       ["Exercise Plan", result.exercisePlan || ""],
+       ["Prevention Recommendations", result.preventionTips || ""]].forEach(([t, body]) => {
         y += 6;
         title(t);
         para((body || "").replace(/[#*_`>]/g, ""));
       });
 
-      ensureSpace(40);
-      y += 12;
+      ensureSpace(50);
+      y += 16;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(140);
+      doc.text("MEDICAL DISCLAIMER", margin, y);
+      y += 14;
+      doc.setFont("helvetica", "normal");
       const disc = doc.splitTextToSize(
-        "HealthGuard provides educational health screening indices based on self-reported parameters. It does not diagnose, treat, cure, or prevent any clinical condition. Projections are mathematical trends and do not guarantee biological outcomes. Users must consult qualified healthcare professionals for medical advice and clinical testing.",
-        cw,
+        "HealthGuard provides educational health screening indices based on self-reported parameters. It does not diagnose, treat, cure, or prevent any clinical condition. Users must consult qualified healthcare professionals for medical advice and clinical testing.",
+        cw
       );
       doc.text(disc, margin, y);
 
       doc.save(`healthguard-report-${new Date().toISOString().slice(0, 10)}.pdf`);
-      toast.success("Health report PDF downloaded successfully.", { id: toastId });
+      toast.success("PDF downloaded successfully.", { id: toastId });
     } catch (err) {
       console.error(err);
-      toast.error("Failed to generate PDF document.", { id: toastId });
+      toast.error("Failed to generate PDF.", { id: toastId });
     }
   }
 
-  // Render Skeleton while auth is parsing or local profile is empty
-  const isSyncingFirstTime =
-    (bootstrapLoading || authLoading || authSyncing) && !hasValidHealthResult;
-  if (isSyncingFirstTime) {
+  // ── Skeleton ─────────────────────────────────────────────
+  const isSyncing = (bootstrapLoading || authLoading || authSyncing) && !hasValidHealthResult;
+  if (isSyncing) {
     return (
-      <div className="mx-auto max-w-[1600px] px-4 py-10 space-y-6 animate-pulse">
-        <div className="h-10 bg-muted/40 w-1/4 rounded-lg" />
-        <div className="h-4 bg-muted/30 w-1/3 rounded-lg" />
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="h-32 bg-muted/40 rounded-2xl md:col-span-2" />
-          <div className="h-32 bg-muted/40 rounded-2xl" />
+      <div className="w-full px-4 py-3 space-y-4 animate-pulse">
+        <div className="h-10 bg-muted/40 w-1/3 rounded-xl mx-auto" />
+        <div className="h-5 bg-muted/30 w-1/2 rounded-lg mx-auto" />
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="h-56 bg-muted/40 rounded-2xl" />
+          <div className="h-56 bg-muted/40 rounded-2xl" />
         </div>
         {isWaking && (
           <div className="p-4 bg-teal/10 border border-teal/20 text-teal text-xs font-semibold rounded-xl flex items-center gap-2">
@@ -398,598 +507,354 @@ function Dashboard() {
             <span>The health service is starting. Your dashboard will load shortly.</span>
           </div>
         )}
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="h-80 bg-muted/40 rounded-2xl" />
-          <div className="h-80 bg-muted/40 rounded-2xl" />
-          <div className="h-80 bg-muted/40 rounded-2xl" />
-        </div>
       </div>
     );
   }
 
-  if (!hasValidHealthResult) return <EmptyState />;
+  // ── No results → hero onboarding ─────────────────────────
+  if (!hasValidHealthResult) return <HeroOnboarding />;
 
+  // ── Results view ─────────────────────────────────────────
   const lastUpdateDateStr = userStatus?.lastAssessmentUpdate || result?.updatedAt || null;
-
   let profileAgeDays = 0;
   if (lastUpdateDateStr) {
-    const lastUpdate = new Date(lastUpdateDateStr);
-    const diffTime = Math.abs(new Date().getTime() - lastUpdate.getTime());
-    profileAgeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diff = Math.abs(new Date().getTime() - new Date(lastUpdateDateStr).getTime());
+    profileAgeDays = Math.floor(diff / (1000 * 60 * 60 * 24));
   }
 
-  const hasScannedFood = !!localStorage.getItem("hg.hasScannedFood");
+  const overallColor = riskColor(result.overallScore);
 
-  let nextStepTitle = "";
-  let nextStepDesc = "";
-  let nextStepLink = "";
-  let nextStepButton = "";
-
-  if (!hasCompletedAssessment) {
-    nextStepTitle = "Complete Assessment";
-    nextStepDesc =
-      "Fill in your demographic and physiological parameters to generate your profile.";
-    nextStepLink = "/assessment";
-    nextStepButton = "Start Assessment";
-  } else if (!hasScannedFood) {
-    nextStepTitle = "Scan your first food item";
-    nextStepDesc =
-      "Use our AI scanner to assess packaged ingredient safety against your health risks.";
-    nextStepLink = "/scanner";
-    nextStepButton = "Open Scanner";
-  } else {
-    nextStepTitle = "Check your Action Plan updates";
-    nextStepDesc = "Your AI Coach has updated suggestions to lower your specific risk metrics.";
-    nextStepLink = "/action-plan";
-    nextStepButton = "Open Action Plan";
-  }
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "N/A";
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const overall = result.overallScore;
-  const overallPct = Math.min(100, (overall / 80) * 100);
-  const overallColor =
-    result.overallRisk === "Low"
-      ? CHART_GREEN
-      : result.overallRisk === "Moderate"
-        ? CHART_AMBER
-        : CHART_RED;
-
-  const quickActions = [
-    {
-      icon: <ClipboardList className="h-6 w-6 text-foreground" />,
-      color: "teal",
-      label: tr("startAssessment", currentLang) || "Assessment",
-      onClick: () => navigate({ to: "/assessment" }),
-    },
-    {
-      icon: <ScanLine className="h-6 w-6 text-foreground" />,
-      color: "purple",
-      label: tr("foodScanner", currentLang) || "Food Scanner",
-      onClick: () => navigate({ to: "/scanner" }),
-    },
-    {
-      icon: <Activity className="h-6 w-6 text-foreground" />,
-      color: "green",
-      label: tr("progress", currentLang) || "Track Progress",
-      onClick: () => navigate({ to: "/progress" }),
-    },
-    {
-      icon: <Stethoscope className="h-6 w-6 text-foreground" />,
-      color: "orange",
-      label: tr("expertReview", currentLang) || "Expert Review",
-      onClick: () => navigate({ to: "/expert-review" }),
-    },
-    {
-      icon: <Info className="h-6 w-6 text-foreground" />,
-      color: "blue",
-      label: tr("about", currentLang) || "About Portal",
-      onClick: () => navigate({ to: "/about" }),
-    },
-    {
-      icon: <LifeBuoy className="h-6 w-6 text-foreground" />,
-      color: "indigo",
-      label: tr("support", currentLang) || "Support Chat",
-      onClick: () => navigate({ to: "/contact" }),
-    },
+  // Radar chart data
+  const radarData = [
+    { subject: "Diabetes",      value: result.risk.diabetes,     fullMark: 100 },
+    { subject: "Heart",         value: result.risk.heartDisease, fullMark: 100 },
+    { subject: "Hypertension",  value: result.risk.hypertension, fullMark: 100 },
+    { subject: "BMI",           value: Math.min(100, Math.max(0, (result.bmi - 18.5) * 4)), fullMark: 100 },
+    { subject: "Lifestyle",     value: Math.min(100, (result.overallScore / 80) * 100),      fullMark: 100 },
   ];
 
+  // Action priorities — prefer server data, fallback to result.actionPriorities
+  const priorityActions: Array<{ title: string; stars: number; icon: React.ReactNode }> =
+    actionImpacts.length > 0
+      ? actionImpacts.slice(0, 3).map((a, i) => ({
+          title: a.title,
+          stars: 5 - i,
+          icon: a.icon,
+        }))
+      : (result.actionPriorities || []).slice(0, 3).map((p: any, i: number) => ({
+          title: p.action,
+          stars: 5 - i,
+          icon: ["🏃", "🥗", "😴"][i] ?? "💊",
+        }));
+
+  // Top contributors
+  const contributors: string[] =
+    riskDrivers.length > 0
+      ? riskDrivers.slice(0, 4).map((d) => d.factor)
+      : ["BMI", "Family History", "Physical Activity", "Diet"].slice(0, 4);
+
   return (
-    <div className="mx-auto max-w-[1600px] px-4 py-10 space-y-6">
-      {/* Wake-up & Error Diagnostic Banners */}
+    <div className="w-full px-4 py-3 space-y-4">
+
+      {/* ── Error / Wake banner ─────────────────────────── */}
       {isWaking && (
         <div className="p-4 bg-teal/10 border border-teal/20 text-teal text-xs font-semibold rounded-xl flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           <span>The health service is starting. Your dashboard will load shortly.</span>
         </div>
       )}
-
       {bootstrapError && (
         <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-semibold rounded-xl flex items-center justify-between gap-4">
           <span>{bootstrapError}</span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-red-500/30 hover:bg-red-500/10 text-red-500 font-bold"
-            onClick={handleRetry}
-          >
+          <Button size="sm" variant="outline" className="border-red-500/30 text-red-500 font-bold" onClick={handleRetry}>
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Retry
           </Button>
         </div>
       )}
 
-      {/* Dashboard Header Banner */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Badge variant="secondary" className="rounded-full">
-            {tr("clinicalEngine", currentLang)}
-          </Badge>
-          <SplitText
-            text={tr("riskDashboard", currentLang)}
-            className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl"
-            delay={35}
-            duration={0.6}
-            ease="power3.out"
-            splitType="chars"
-            tag="h1"
-            textAlign="left"
-          />
-          <p className="mt-2 text-muted-foreground">
-            Generated for a {profile.age}-year-old {profile.gender}, BMI {result.bmi.toFixed(1)}.
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap justify-end">
-          <Button
-            asChild
-            variant="outline"
-            className="border-teal/30 hover:bg-teal/5 text-teal hover:text-teal font-semibold"
-          >
-            <Link to="/simulator">Action Impact Explorer</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/assessment">Re-run Assessment</Link>
-          </Button>
-          <Button
-            onClick={download}
-            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
-          >
-            <Download className="h-4 w-4" /> Download Report
-          </Button>
-        </div>
+      {/* ── Hero Header ────────────────────────────────────── */}
+      <div className="text-center space-y-2 pt-2">
+        <Badge variant="secondary" className="rounded-full text-[11px] font-semibold">
+          {tr("clinicalEngine", currentLang)}
+        </Badge>
+        <SplitText
+          text={tr("riskDashboard", currentLang)}
+          className="font-display text-4xl sm:text-5xl font-bold tracking-tight text-foreground"
+          delay={35}
+          duration={0.6}
+          ease="power3.out"
+          splitType="chars"
+          tag="h1"
+          textAlign="center"
+        />
+        <p className="text-muted-foreground text-sm">
+          Generated for a {profile.age}-year-old {profile.gender}, BMI {result.bmi.toFixed(1)}
+          {profileAgeDays > 0 && ` · ${profileAgeDays}d ago`}
+        </p>
       </div>
 
-      {/* Quick Navigation Hub using GlassIcons */}
-      <div className="border border-border bg-surface/50 backdrop-blur-md rounded-2xl p-6 shadow-card-soft">
-        <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
-          Quick Access Portal
-        </div>
-        <GlassIcons items={quickActions} className="py-2" />
-      </div>
-
-      {/* Dynamic Journey Section */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Left 2 cols: Progress & Recommended Next Step */}
-        <div className="md:col-span-2 p-6 rounded-2xl bg-gradient-to-r from-teal/10 via-primary/5 to-surface border border-teal/10 flex flex-col justify-between space-y-4">
-          <div>
-            <h2 className="font-display text-base font-bold text-foreground flex items-center gap-2">
-              {tr("overview", currentLang)}
-            </h2>
-            <div className="flex flex-col gap-2.5 mt-3 text-xs">
-              <div className="flex items-center gap-2 text-teal font-medium">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-teal/20 text-teal text-[10px] font-bold">
-                  ✓
-                </span>
-                <span>{tr("assessmentComplete", currentLang)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-teal font-medium">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-teal/20 text-teal text-[10px] font-bold">
-                  ✓
-                </span>
-                <span>{tr("riskProfileGenerated", currentLang)}</span>
-              </div>
-              <div className="mt-2 p-3.5 rounded-xl border border-border bg-surface-muted/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider font-mono">
-                    {tr("nextRecommendedStep", currentLang)}
-                  </span>
-                  <h4 className="font-bold text-foreground text-sm">{nextStepTitle}</h4>
-                  <p className="text-[11px] text-muted-foreground leading-normal">{nextStepDesc}</p>
-                </div>
-                <Button
-                  asChild
-                  size="sm"
-                  className="bg-teal text-white hover:bg-teal/90 shrink-0 text-xs font-bold rounded-lg h-9"
-                >
-                  <Link to={nextStepLink}>{nextStepButton}</Link>
-                </Button>
-              </div>
+      {/* ── Blood-report-only nudge ─────────────────────────── */}
+      {profile?.bloodReportOnly && (
+        <div className="rounded-2xl border border-teal/20 bg-teal/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="h-5 w-5 text-teal shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold text-foreground">Blood Report Analyzed</h4>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Complete the full lifestyle assessment to get a more accurate risk prediction.
+              </p>
             </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => navigate({ to: "/assessment", search: { mode: "retake" } })}
+            className="bg-teal text-white hover:bg-teal/90 text-xs h-8 font-semibold rounded-lg shrink-0 cursor-pointer"
+          >
+            Complete Assessment
+          </Button>
+        </div>
+      )}
+
+      {/* ── Overall Health Score ────────────────────────────── */}
+      <div className="grid sm:grid-cols-2 gap-5">
+        {/* Score card */}
+        <div className="rounded-2xl border border-border bg-surface p-7 flex flex-col justify-between shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            Overall Health Score
+          </p>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="font-display text-7xl font-black" style={{ color: overallColor }}>
+              <AnimatedScore score={result.overallScore} />
+            </span>
+            <span className="text-2xl text-muted-foreground font-semibold">/ 80</span>
+          </div>
+          <div
+            className="mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold border self-start"
+            style={{ color: overallColor, borderColor: `${overallColor}30`, backgroundColor: `${overallColor}10` }}
+          >
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: overallColor }} />
+            {result.overallRisk} Risk
+          </div>
+          <Separator className="my-4" />
+          <div className="space-y-2.5">
+            {[
+              { name: "Diabetes",       value: result.risk.diabetes },
+              { name: "Heart Disease",  value: result.risk.heartDisease },
+              { name: "Hypertension",   value: result.risk.hypertension },
+            ].map((r) => {
+              const c = riskColor(r.value);
+              return (
+                <div key={r.name} className="space-y-1">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-muted-foreground">{r.name}</span>
+                    <span style={{ color: c }}>{r.value}/100</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-muted/50 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${r.value}%`, backgroundColor: c }} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Right 1 col: Profile Age & Assessment Date */}
-        <Card className="border-border bg-surface shadow-card-soft h-full flex flex-col justify-between">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-              {tr("assessmentValidity", currentLang)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-4 flex-1 flex flex-col justify-center text-center space-y-2">
-            <div>
-              <p className="text-xs text-muted-foreground">{tr("profileAge", currentLang)}</p>
-              <h3 className="font-display text-3xl font-black text-foreground mt-1">
-                {profileAgeDays === 0
-                  ? tr("today", currentLang)
-                  : `${profileAgeDays} ${profileAgeDays === 1 ? tr("day", currentLang) : tr("days", currentLang)} ${tr("old", currentLang)}`}
-              </h3>
-            </div>
-            <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-2.5 mt-2">
-              {tr("completedColon", currentLang)} {formatDate(lastUpdateDateStr)}
-            </div>
-          </CardContent>
-          <CardFooter className="pt-0 pb-4 justify-center bg-surface-muted/10 border-t border-border/30 rounded-b-xl py-3">
-            <Button
-              asChild
-              variant="ghost"
-              className="text-xs font-bold text-teal hover:bg-teal/5 h-8"
-            >
-              <Link to="/assessment">{tr("updateAssessment", currentLang)}</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+        {/* Radar chart */}
+        <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm flex flex-col">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-4">
+            Risk Radar
+          </p>
+          <div className="flex-1 min-h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={radarData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
+                <PolarGrid stroke="var(--border)" strokeOpacity={0.5} />
+                <PolarAngleAxis
+                  dataKey="subject"
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 600 }}
+                />
+                <Radar
+                  name="Risk"
+                  dataKey="value"
+                  stroke="#14b8a6"
+                  fill="#14b8a6"
+                  fillOpacity={0.18}
+                  strokeWidth={2}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
-      {/* Main Layout Area */}
-      <div className="space-y-6">
-        {/* Health Coach Check-In Card */}
-        <Card className="border-border bg-surface shadow-card-soft overflow-hidden relative">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal via-primary to-accent" />
-          <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-            <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-full bg-teal/15 text-teal flex items-center justify-center shrink-0 mt-0.5">
-                <Brain className="h-5 w-5 animate-pulse" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-display text-sm font-bold text-foreground">
-                    {tr("healthCoachCheckIn", currentLang)}
-                  </h3>
-                  <button
-                    onClick={refreshCoachNudge}
-                    disabled={nudgeRefreshing}
-                    className="p-1 rounded text-muted-foreground hover:text-teal hover:bg-teal/10 transition-colors disabled:opacity-50"
-                    title="Generate fresh AI nudge"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${nudgeRefreshing ? "animate-spin" : ""}`} />
-                  </button>
+      {/* ── Top Contributors ────────────────────────────────── */}
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-5">
+          <Brain className="h-4 w-4 text-teal" />
+          <h2 className="font-display font-bold text-base text-foreground">Top Risk Contributors</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {contributors.map((c, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
+              <span className="h-6 w-6 rounded-full bg-teal/10 text-teal text-[11px] font-bold flex items-center justify-center shrink-0">
+                {i + 1}
+              </span>
+              <span className="text-sm font-semibold text-foreground">{c}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Priority Actions ────────────────────────────────── */}
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-5">
+          <TrendingDown className="h-4 w-4 text-teal" />
+          <h2 className="font-display font-bold text-base text-foreground">Priority Actions</h2>
+        </div>
+        <div className="space-y-3">
+          {priorityActions.map((a, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-4 rounded-xl border border-border px-4 py-3 bg-muted/10 hover:bg-teal/[0.03] transition-colors"
+            >
+              <span className="text-lg shrink-0">{typeof a.icon === "string" ? a.icon : a.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">
+                  <span className="text-teal font-bold mr-1.5">{["①", "②", "③"][i]}</span>
+                  {a.title}
+                </p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Impact</span>
+                  <Stars count={a.stars} />
                 </div>
-                {nudgeRefreshing ? (
-                  <div className="space-y-2 mt-2">
-                    <div className="h-4 w-3/4 bg-muted/40 animate-pulse rounded-lg" />
-                    <div className="h-4 w-1/2 bg-muted/40 animate-pulse rounded-lg" />
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 mt-1.5">
-                    <p className="text-sm font-semibold text-foreground">
-                      {tr("currentFocus", currentLang)}{" "}
-                      <span className="font-normal text-muted-foreground">
-                        {coachNudge?.insight || "Reduce sedentary lifestyle."}
-                      </span>
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">
-                      {tr("nextAction", currentLang)}{" "}
-                      <span className="font-normal text-muted-foreground">
-                        {coachNudge?.nextAction || "Take a 15-minute walk tomorrow morning."}
-                      </span>
-                    </p>
-                    {coachNudge?.message && (
-                      <p className="text-xs text-muted-foreground italic leading-normal border-t border-border/30 pt-1.5 mt-1.5">
-                        Coach Advice: {coachNudge.message}
-                      </p>
-                    )}
-                  </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 pt-4 border-t border-border/40">
+          <Button asChild variant="ghost" size="sm" className="text-teal hover:bg-teal/5 font-semibold">
+            <Link to="/action-plan">View Full Action Plan <ArrowRight className="ml-1 h-3.5 w-3.5" /></Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* ── AI Health Coach ──────────────────────────────────── */}
+      <div className="rounded-2xl border border-teal/20 bg-teal/[0.03] p-6 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="h-10 w-10 rounded-xl bg-teal/10 border border-teal/20 flex items-center justify-center text-teal shrink-0">
+            <Brain className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="font-display font-bold text-sm text-foreground">
+                {tr("healthCoachCheckIn", currentLang)}
+              </h2>
+              <button
+                onClick={refreshCoachNudge}
+                disabled={nudgeRefreshing}
+                className="p-1 rounded text-muted-foreground hover:text-teal hover:bg-teal/10 transition-colors disabled:opacity-50"
+                title="Refresh AI advice"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${nudgeRefreshing ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+            {nudgeRefreshing ? (
+              <div className="space-y-2">
+                <div className="h-4 w-3/4 bg-muted/40 animate-pulse rounded" />
+                <div className="h-4 w-1/2 bg-muted/40 animate-pulse rounded" />
+              </div>
+            ) : (
+              <div className="space-y-1.5 text-sm">
+                <p>
+                  <span className="font-semibold text-foreground">Current Focus: </span>
+                  <span className="text-muted-foreground">{coachNudge?.insight ?? "Reduce sedentary lifestyle."}</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Next Action: </span>
+                  <span className="text-muted-foreground">{coachNudge?.nextAction ?? "Take a 15-minute walk tomorrow morning."}</span>
+                </p>
+                {coachNudge?.message && (
+                  <p className="text-xs text-muted-foreground italic border-t border-border/30 pt-1.5 mt-1.5">
+                    {coachNudge.message}
+                  </p>
                 )}
               </div>
-            </div>
-            <Button
-              asChild
-              className="bg-teal text-white hover:bg-teal/90 font-bold text-xs h-9 cursor-pointer self-stretch md:self-auto rounded-lg shrink-0"
-            >
-              <Link to="/action-plan">{tr("goToActionPlan", currentLang)}</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* 3-Column Layout: Overall Risk, Primary Drivers, Highest Impact Actions */}
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Card 1: Health Score */}
-          <Card className="border-border bg-surface shadow-card-soft">
-            <CardContent className="p-6 flex flex-col justify-between h-full">
-              <div>
-                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                  <span>{tr("overallRisk", currentLang)}</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="text-muted-foreground/60 hover:text-foreground cursor-pointer"
-                        >
-                          <Info className="h-3.5 w-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-[220px] p-2 bg-popover text-popover-foreground text-xs rounded border border-border shadow-md">
-                        {tr("calculatedUsingModels", currentLang)}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <div className="mt-4 flex items-baseline gap-2">
-                  <span
-                    className="font-display text-6xl font-bold tracking-tight"
-                    style={{ color: overallColor }}
-                  >
-                    <AnimatedScore score={result.overallScore} />
-                  </span>
-                  <span className="text-xl text-muted-foreground font-semibold">/ 80</span>
-                </div>
-                <div
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border"
-                  style={{
-                    color: overallColor,
-                    borderColor: `${overallColor}30`,
-                    backgroundColor: `${overallColor}08`,
-                  }}
-                >
-                  <span
-                    className="h-1.5 w-1.5 rounded-full animate-pulse"
-                    style={{ backgroundColor: overallColor }}
-                  />
-                  {tr("riskLevel", currentLang)}:{" "}
-                  {tr(
-                    result.overallRisk === "Low"
-                      ? "low"
-                      : result.overallRisk === "Moderate"
-                        ? "moderateRisk"
-                        : "high",
-                    currentLang,
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6 border-t border-border/40 pt-4 space-y-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
-                  {tr("conditionRisksBreakdown", currentLang)}
-                </div>
-                {[
-                  { name: "Diabetes", value: result.risk.diabetes },
-                  { name: "Heart Disease", value: result.risk.heartDisease },
-                  { name: "Hypertension", value: result.risk.hypertension },
-                ].map((r) => {
-                  const c = colorFor(r.value);
-                  return (
-                     <div key={r.name} className="space-y-1">
-                       <div className="flex justify-between text-xs font-semibold">
-                         <span className="text-muted-foreground">
-                           {r.name === "Diabetes"
-                             ? tr("diabetes", currentLang)
-                             : r.name === "Heart Disease"
-                               ? tr("heartDisease", currentLang)
-                               : tr("hypertension", currentLang)}
-                         </span>
-                         <span style={{ color: c }}>{r.value}/100</span>
-                       </div>
-                       <div className="h-1.5 w-full bg-muted/60 rounded-full overflow-hidden">
-                         <div
-                           className="h-full rounded-full transition-all duration-500"
-                           style={{ width: `${r.value}%`, backgroundColor: c }}
-                         />
-                       </div>
-                     </div>
-                  );
-                })}
-                <div className="mt-4 pt-3 border-t border-border/20 text-[10px] text-muted-foreground leading-normal">
-                  HealthGuard screening indices are educational numbers generated by custom lifestyle scoring logic and do not represent diagnostic, calibrated disease probabilities or universal medical risk. The Overall Screening Index is a sum summarizing the three lifestyle screening domains (max 80). Consult a physician for clinical testing.
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Primary Risk Drivers */}
-          <Card className="border-border bg-surface shadow-card-soft">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 font-display text-base text-foreground font-semibold">
-                <Brain className="h-4 w-4 text-teal animate-pulse-slow" />{" "}
-                {tr("lifestyleImpact", currentLang)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-1 flex flex-col justify-between h-[calc(100%-60px)]">
-              {riskDrivers.length > 0 ? (
-                <div className="flex flex-col justify-between h-full space-y-4">
-                  {/* Top Drivers List */}
-                  <div className="space-y-3">
-                    {riskDrivers.slice(0, 3).map((driver, index) => (
-                      <div
-                        key={index}
-                        className="flex justify-between items-center text-xs font-semibold"
-                      >
-                        <span className="text-foreground flex items-center gap-2">
-                          <span className="text-teal font-bold">{index + 1}.</span>
-                          <span>{driver.factor}</span>
-                        </span>
-                        <Badge variant="secondary" className="font-mono text-[10px]">
-                          {driver.contribution}%
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-6 text-center text-xs text-muted-foreground">
-                  <Brain className="h-8 w-8 text-teal/40 mb-2" />
-                  <span>{tr("noRiskDrivers", currentLang)}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Card 3: Highest Impact Actions */}
-          <Card className="relative border-border bg-surface shadow-card-soft overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal to-primary opacity-60" />
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 font-display text-base text-foreground font-semibold">
-                <TrendingDown className="h-4 w-4 text-teal" />{" "}
-                {tr("actionPrioritiesTitle", currentLang)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-1">
-              {actionImpacts.length > 0 ? (
-                <div className="flex flex-col gap-2.5">
-                  {actionImpacts.map((action, idx) => {
-                    const rankColors = ["text-amber-500", "text-slate-400", "text-orange-700"];
-                    const badgeColors = [
-                      "bg-teal/10 text-teal border-teal/20",
-                      "bg-blue-500/10 text-blue-400 border-blue-500/20",
-                      "bg-purple-500/10 text-purple-400 border-purple-500/20",
-                    ];
-                    return (
-                      <div
-                        key={action.id}
-                        className="flex flex-col rounded-lg border border-border bg-surface-muted/50 p-2.5 hover:bg-accent/20 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          {/* Rank */}
-                          <div className={`text-base font-bold w-5 shrink-0 ${rankColors[idx]}`}>
-                            {idx + 1}
-                          </div>
-                          {/* Icon + Title */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm">{action.icon}</span>
-                              <p className="text-xs font-semibold text-foreground truncate">
-                                {action.title}
-                              </p>
-                            </div>
-                            {/* Risk arrow */}
-                            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-muted-foreground font-mono">
-                              <span
-                                className="font-semibold"
-                                style={{ color: colorFor(action.currentRisk) }}
-                              >
-                                {action.currentRisk}%
-                              </span>
-                              <span>→</span>
-                              <span className="font-semibold text-teal">
-                                {action.projectedRisk}%
-                              </span>
-                            </div>
-                          </div>
-                          {/* Reduction badge */}
-                          <div
-                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeColors[idx]}`}
-                          >
-                            -{action.absoluteReduction} {tr("estimatedReduction", currentLang)}
-                          </div>
-                        </div>
-
-                        {/* Explainability Nudge */}
-                        <div className="mt-2 text-[10px] text-muted-foreground border-t border-border/30 pt-1.5">
-                          <span className="font-bold text-teal">
-                            {tr("whyQuestion", currentLang)}
-                          </span>{" "}
-                          {action.id === "exercise_30_min"
-                            ? tr("whyExercise", currentLang)
-                            : action.id === "lose_5kg"
-                              ? tr("whyLoseWeight", currentLang)
-                              : action.id === "improve_sleep"
-                                ? tr("whySleep", currentLang)
-                                : tr("whyLifestyle", currentLang)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {result.actionPriorities && result.actionPriorities.length > 0 ? (
-                    result.actionPriorities.slice(0, 3).map((p, i) => (
-                      <div
-                        key={i}
-                        className="flex flex-col rounded-lg border border-border bg-surface-muted/65 p-2.5"
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <TrendingDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-foreground">{p.action}</p>
-                            <p className="text-[10px] text-teal mt-0.5">
-                              ↓ {Math.abs(p.estimatedImpact)}{" "}
-                              {tr("estimatedReduction", currentLang)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-2 text-[10px] text-muted-foreground border-t border-border/30 pt-1.5">
-                          <span className="font-bold text-teal">
-                            {tr("whyQuestion", currentLang)}
-                          </span>{" "}
-                          {tr("whyDefault", currentLang)}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex items-center gap-2 rounded-lg border border-teal/20 bg-teal/5 p-3">
-                      <Brain className="h-4 w-4 text-teal shrink-0" />
-                      <p className="text-xs text-teal font-medium">
-                        {tr("wellOptimised", currentLang)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </div>
         </div>
+      </div>
 
-        {/* Expert Review Card (Phase 9) */}
-        <Card className="border-border bg-surface shadow-card-soft mt-6">
-          <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-            <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-full bg-teal/15 text-teal flex items-center justify-center shrink-0 mt-0.5 animate-pulse">
-                <Stethoscope className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-display text-sm font-bold text-foreground">
-                  {tr("expertClinicalReview", currentLang)}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  {expertReviewStatus === "pending" && tr("expertReviewStatusPending", currentLang)}
-                  {expertReviewStatus === "accepted" &&
-                    tr("expertReviewStatusAccepted", currentLang)}
-                  {expertReviewStatus === "completed" &&
-                    tr("expertReviewStatusCompleted", currentLang)}
-                  {!expertReviewStatus && tr("expertReviewStatusNone", currentLang)}
-                </p>
-              </div>
+      {/* ── Expert Review ─────────────────────────────────────── */}
+      <div className="rounded-2xl border border-border bg-surface p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="h-10 w-10 rounded-xl bg-teal/10 border border-teal/20 flex items-center justify-center text-teal shrink-0">
+            <Stethoscope className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm text-foreground">{tr("expertClinicalReview", currentLang)}</h3>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-sm">
+              {expertReviewStatus === "pending" && tr("expertReviewStatusPending", currentLang)}
+              {expertReviewStatus === "accepted" && tr("expertReviewStatusAccepted", currentLang)}
+              {expertReviewStatus === "completed" && tr("expertReviewStatusCompleted", currentLang)}
+              {!expertReviewStatus && tr("expertReviewStatusNone", currentLang)}
+            </p>
+          </div>
+        </div>
+        <Button asChild className="bg-teal text-white hover:bg-teal/90 font-semibold text-xs h-9 rounded-xl shrink-0">
+          <Link to="/expert-review">
+            {expertReviewStatus ? tr("checkStatus", currentLang) : tr("requestReview", currentLang)}
+          </Link>
+        </Button>
+      </div>
+
+      {/* ── Medical Disclaimer ────────────────────────────────── */}
+      <MedicalDisclaimer />
+
+      {/* ── Download PDF ─────────────────────────────────────── */}
+      <div className="rounded-2xl border border-border bg-surface p-7 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="h-11 w-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-display font-bold text-base text-foreground mb-1">Download Results</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Your complete PDF report includes:
+            </p>
+            <div className="grid sm:grid-cols-2 gap-1.5 text-xs text-muted-foreground mb-6">
+              {["Risk Score & Lab Values", "AI Recommendations", "Lifestyle Advice", "Risk Breakdown", "Medical Disclaimer", "Report Date"].map((item) => (
+                <div key={item} className="flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-teal shrink-0" />
+                  <span>{item}</span>
+                </div>
+              ))}
             </div>
             <Button
-              asChild
-              className="bg-teal text-white hover:bg-teal/95 font-bold text-xs h-9 rounded-lg shrink-0 w-full sm:w-auto shadow-sm"
+              onClick={download}
+              className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold h-10 rounded-xl shadow-sm"
             >
-              <Link to="/expert-review">
-                {expertReviewStatus
-                  ? tr("checkStatus", currentLang)
-                  : tr("requestReview", currentLang)}
-              </Link>
+              <Download className="h-4 w-4" /> Download PDF Report
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Reassessment ─────────────────────────────────────── */}
+      <div className="rounded-2xl border border-border bg-muted/20 p-6 text-center space-y-3">
+        <RotateCcw className="h-6 w-6 text-muted-foreground mx-auto" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Health changes over time.</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            We recommend reassessment every <span className="font-bold text-foreground">30 days</span>.
+          </p>
+        </div>
+        <Button
+          asChild
+          variant="outline"
+          className="border-border hover:border-teal/40 hover:bg-teal/5 font-semibold h-10 rounded-xl"
+        >
+          <Link to="/assessment" search={{ mode: "retake" }}>
+            Start New Assessment
+          </Link>
+        </Button>
       </div>
     </div>
   );

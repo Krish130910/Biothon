@@ -12,13 +12,17 @@ import {
   LogOut,
   Mail,
   User as UserIcon,
-  Shield,
-  FileText,
+  ShieldCheck,
+  BookOpen,
   Activity,
   ClipboardList,
+  CheckCircle2,
+  Clock,
+  Upload,
 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import SplitText from "@/components/ui/split-text";
+import { GlassIconBox } from "@/components/ui/glass-icons";
 
 export const Route = createFileRoute("/_app/profile")({
   component: ProfilePage,
@@ -102,175 +106,299 @@ function ProfilePage() {
         .toUpperCase()
     : user.email?.slice(0, 2).toUpperCase() || "PT";
 
+  const hasCompleted = assessmentStatus?.hasCompletedAssessment;
+
   return (
-    <div className="mx-auto max-w-xl px-6 py-10 lg:py-14">
-      {/* Header section with back button */}
-      <div className="mb-6 flex items-center justify-between">
+    <div className="mx-auto max-w-[960px] px-4 sm:px-6 py-10 lg:py-14">
+
+      {/* ── Page Header ── */}
+      <div className="mb-8 flex items-center justify-between">
         <div>
           <SplitText
             text={tr("profile", currentLang)}
-            className="mt-2 font-display text-2xl font-bold tracking-tight"
-            delay={35}
-            duration={0.6}
+            className="font-display text-3xl font-bold tracking-tight text-foreground"
+            delay={30}
+            duration={0.55}
             ease="power3.out"
             splitType="chars"
             tag="h1"
             textAlign="left"
+            threshold={0}
+            rootMargin="0px"
           />
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage your account and health profile settings.
+          </p>
         </div>
         <Button
           asChild
           variant="outline"
           size="sm"
-          className="h-8 text-xs border-border hover:bg-accent/40"
+          className="h-9 gap-1.5 text-xs border-border hover:bg-accent/40 shrink-0"
         >
           <Link to="/dashboard">
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> {tr("backToDashboard", currentLang)}
+            <ArrowLeft className="h-3.5 w-3.5" />
+            {tr("backToDashboard", currentLang)}
           </Link>
         </Button>
       </div>
 
-      {/* Main Single Centered Card */}
-      <Card className="border-border/80 bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-        <CardContent className="p-6 sm:p-8 flex flex-col items-center text-center space-y-6">
-          <Avatar className="h-20 w-20 border border-border/80 shadow-sm">
-            <AvatarImage
-              src={
-                user.providerData.find((p) => p.providerId === "google.com")?.photoURL ||
-                user.photoURL ||
-                undefined
-              }
-              alt={user.displayName || tr("patient", currentLang)}
-            />
-            <AvatarFallback className="bg-primary text-primary-foreground text-xl font-bold flex items-center justify-center">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+      <div className="space-y-5">
 
-          {/* User Details */}
-          <div className="w-full space-y-3 pt-2">
-            <div className="flex items-center justify-between border-b border-border/40 pb-2.5 text-sm">
-              <span className="text-muted-foreground flex items-center gap-2">
-                <UserIcon className="h-4 w-4 text-teal/80" /> {tr("fullName", currentLang)}
-              </span>
-              <span className="font-semibold text-foreground">
-                {user.displayName || tr("patient", currentLang)}
-              </span>
-            </div>
+        {/* ── Profile Header Card ── */}
+        <Card className="border-border/80 bg-surface shadow-card-soft">
+          <CardContent className="p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
 
-            <div className="flex items-center justify-between border-b border-border/40 pb-2.5 text-sm">
-              <span className="text-muted-foreground flex items-center gap-2">
-                <Mail className="h-4 w-4 text-teal/80" /> {tr("email", currentLang)}
-              </span>
-              <span
-                className="font-semibold text-foreground truncate max-w-[220px]"
-                title={user.email || ""}
-              >
-                {user.email}
-              </span>
-            </div>
+              {/* Avatar */}
+              <div className="shrink-0">
+                <Avatar className="h-24 w-24 border-2 border-border/60 shadow-md">
+                  <AvatarImage
+                    src={
+                      user.providerData.find((p) => p.providerId === "google.com")?.photoURL ||
+                      user.photoURL ||
+                      undefined
+                    }
+                    alt={user.displayName || tr("patient", currentLang)}
+                  />
+                  <AvatarFallback className="bg-teal/10 text-teal text-2xl font-bold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
 
-            <div className="flex items-center justify-between border-b border-border/40 pb-2.5 text-sm">
-              <span className="text-muted-foreground flex items-center gap-2">
-                <Shield className="h-4 w-4 text-teal/80" /> {tr("accountType", currentLang)}
-              </span>
-              <Badge
-                variant="secondary"
-                className="bg-teal/5 text-teal border border-teal/15 font-medium text-xs px-2 py-0.5"
-              >
-                {isGoogle ? tr("googleAccount", currentLang) : tr("emailAccount", currentLang)}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Health Profile Status (Reassessment Panel) */}
-          <div className="w-full space-y-2.5 pt-2 text-left border-t border-border/40">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-teal/80">
-              {tr("healthProfileOnboarding", currentLang)}
-            </h3>
-            <Card className="border border-border bg-surface-muted/20 shadow-none">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <ClipboardList className="h-4 w-4 text-teal" />{" "}
-                    {tr("onboardingStatus", currentLang)}
-                  </span>
-                  {loadingStatus ? (
-                    <Loader2 className="h-3 w-3 animate-spin text-teal" />
-                  ) : (
-                    <Badge className="bg-teal/15 text-teal hover:bg-teal/15 border-teal/10 font-bold rounded-full text-[10px] uppercase">
-                      {assessmentStatus?.hasCompletedAssessment
-                        ? tr("completed", currentLang)
-                        : tr("pending", currentLang)}
+              {/* Identity */}
+              <div className="flex-1 text-center sm:text-left space-y-1.5">
+                <h2 className="font-display text-xl font-bold text-foreground leading-tight">
+                  {user.displayName || tr("patient", currentLang)}
+                </h2>
+                <p className="text-sm text-muted-foreground">{user.email}</p>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                  <Badge
+                    variant="secondary"
+                    className="bg-teal/8 text-teal border border-teal/20 font-medium text-xs px-2.5 py-0.5 rounded-full"
+                  >
+                    <ShieldCheck className="h-3 w-3 mr-1 inline-block" />
+                    {isGoogle ? tr("googleAccount", currentLang) : tr("emailAccount", currentLang)}
+                  </Badge>
+                  {hasCompleted && !loadingStatus && (
+                    <Badge
+                      variant="secondary"
+                      className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium text-xs px-2.5 py-0.5 rounded-full"
+                    >
+                      <CheckCircle2 className="h-3 w-3 mr-1 inline-block" />
+                      Profile Complete
                     </Badge>
                   )}
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="p-4 pt-0 pb-3 text-xs text-muted-foreground leading-normal">
-                <p>{tr("onboardingStatusDesc", currentLang)}</p>
-                {assessmentStatus?.lastAssessmentUpdate && (
-                  <p className="text-[10px] text-muted-foreground/80 mt-1 font-mono">
-                    {tr("lastUpdated", currentLang)}:{" "}
-                    {formatDate(assessmentStatus.lastAssessmentUpdate)}
-                  </p>
-                )}
-              </CardContent>
-
-              <CardFooter className="p-4 pt-0">
-                <Button
-                  onClick={() => navigate({ to: "/assessment", search: { mode: "reassess" } })}
-                  className="w-full bg-teal text-white hover:bg-teal/95 font-bold text-xs h-9 cursor-pointer"
-                >
-                  {assessmentStatus?.hasCompletedAssessment
-                    ? tr("reassessHealthProfile", currentLang)
-                    : tr("startInitialAssessment", currentLang)}
-                </Button>
-              </CardFooter>
-            </Card>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="w-full space-y-2.5 pt-2 text-left">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-teal/80">
-              {tr("quickActions", currentLang)}
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                asChild
-                variant="outline"
-                className="h-10 text-xs border-border hover:bg-teal/5 hover:border-teal/30 hover:text-teal font-medium flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer"
-              >
-                <Link to="/report">
-                  <FileText className="h-4 w-4 shrink-0" />
-                  <span>{tr("viewReport", currentLang)}</span>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="h-10 text-xs border-border hover:bg-teal/5 hover:border-teal/30 hover:text-teal font-medium flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer"
-              >
-                <Link to="/dashboard">
-                  <Activity className="h-4 w-4 shrink-0" />
-                  <span>{tr("riskDashboard", currentLang)}</span>
-                </Link>
-              </Button>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Actions */}
-          <div className="w-full pt-2">
+            {/* ── Info Rows ── */}
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-surface-muted/30 px-4 py-3">
+                <GlassIconBox color="teal" size="sm">
+                  <UserIcon className="h-4 w-4 text-foreground" />
+                </GlassIconBox>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {tr("fullName", currentLang)}
+                  </p>
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {user.displayName || tr("patient", currentLang)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-surface-muted/30 px-4 py-3">
+                <GlassIconBox color="teal" size="sm">
+                  <Mail className="h-4 w-4 text-foreground" />
+                </GlassIconBox>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {tr("email", currentLang)}
+                  </p>
+                  <p className="text-sm font-semibold text-foreground truncate" title={user.email || ""}>
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-surface-muted/30 px-4 py-3">
+                <GlassIconBox color="indigo" size="sm">
+                  <ShieldCheck className="h-4 w-4 text-foreground" />
+                </GlassIconBox>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {tr("accountType", currentLang)}
+                  </p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {isGoogle ? tr("googleAccount", currentLang) : tr("emailAccount", currentLang)}
+                  </p>
+                </div>
+              </div>
+
+              {assessmentStatus?.lastAssessmentUpdate && (
+                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-surface-muted/30 px-4 py-3">
+                  <GlassIconBox color="blue" size="sm">
+                    <Clock className="h-4 w-4 text-foreground" />
+                  </GlassIconBox>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      {tr("lastUpdated", currentLang)}
+                    </p>
+                    <p className="text-sm font-semibold text-foreground">
+                      {formatDate(assessmentStatus.lastAssessmentUpdate)}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Health Profile Onboarding ── */}
+        <Card className="border-border/80 bg-surface shadow-card-soft">
+          <CardHeader className="px-6 sm:px-8 pt-6 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <GlassIconBox color="teal" size="sm">
+                  <ClipboardList className="h-4 w-4 text-foreground" />
+                </GlassIconBox>
+                <div>
+                  <CardTitle className="text-base font-bold text-foreground leading-snug">
+                    {tr("healthProfileOnboarding", currentLang)}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {tr("onboardingStatus", currentLang)}
+                  </p>
+                </div>
+              </div>
+
+              {loadingStatus ? (
+                <Loader2 className="h-4 w-4 animate-spin text-teal shrink-0" />
+              ) : (
+                <Badge
+                  className={
+                    hasCompleted
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold rounded-full text-xs px-3"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-semibold rounded-full text-xs px-3"
+                  }
+                >
+                  {hasCompleted ? (
+                    <><CheckCircle2 className="h-3 w-3 mr-1 inline-block" />{tr("completed", currentLang)}</>
+                  ) : (
+                    <><Clock className="h-3 w-3 mr-1 inline-block" />{tr("pending", currentLang)}</>
+                  )}
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+
+          <CardContent className="px-6 sm:px-8 pb-2">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {tr("onboardingStatusDesc", currentLang)}
+            </p>
+
+            {/* Progress indicator placeholder */}
+            <div className="mt-4 h-1.5 w-full rounded-full bg-border/60 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-teal transition-all duration-700"
+                style={{ width: hasCompleted ? "100%" : "0%" }}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground/70">
+              {hasCompleted ? "Health profile complete" : "Complete your assessment to get started"}
+            </p>
+          </CardContent>
+
+          <CardFooter className="px-6 sm:px-8 pt-4 pb-6">
             <Button
-              onClick={logout}
-              variant="destructive"
-              className="w-full h-10 gap-2 font-semibold text-sm transition-all duration-200"
+              onClick={() => navigate({ to: "/assessment", search: { mode: "reassess" } })}
+              className="w-full sm:w-auto bg-teal text-white hover:bg-teal/90 font-semibold text-sm h-10 px-6 cursor-pointer"
             >
-              <LogOut className="h-4 w-4" /> {tr("signOut", currentLang)}
+              {hasCompleted
+                ? tr("reassessHealthProfile", currentLang)
+                : tr("startInitialAssessment", currentLang)}
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {/* ── Quick Actions ── */}
+        <div>
+          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 px-0.5">
+            {tr("quickActions", currentLang)}
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Button
+              asChild
+              variant="outline"
+              className="h-14 text-sm border-border/80 hover:bg-teal/5 hover:border-teal/40 hover:text-teal font-medium flex items-center justify-start gap-3 px-5 transition-all duration-200 cursor-pointer rounded-xl group"
+            >
+              <Link to="/report">
+                <GlassIconBox color="teal" size="sm">
+                  <BookOpen className="h-4 w-4 text-foreground" />
+                </GlassIconBox>
+                <div className="text-left">
+                  <div className="font-semibold text-foreground group-hover:text-teal transition-colors">
+                    {tr("viewReport", currentLang)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">View your health report</div>
+                </div>
+              </Link>
+            </Button>
+
+            <Button
+              asChild
+              variant="outline"
+              className="h-14 text-sm border-border/80 hover:bg-teal/5 hover:border-teal/40 hover:text-teal font-medium flex items-center justify-start gap-3 px-5 transition-all duration-200 cursor-pointer rounded-xl group"
+            >
+              <Link to="/assessment" search={{ mode: "retake", step: 5 }}>
+                <GlassIconBox color="emerald" size="sm">
+                  <Upload className="h-4 w-4 text-foreground" />
+                </GlassIconBox>
+                <div className="text-left">
+                  <div className="font-semibold text-foreground group-hover:text-teal transition-colors">
+                    Upload Lab Report
+                  </div>
+                  <div className="text-xs text-muted-foreground">Scan PDF/image report</div>
+                </div>
+              </Link>
+            </Button>
+
+            <Button
+              asChild
+              variant="outline"
+              className="h-14 text-sm border-border/80 hover:bg-teal/5 hover:border-teal/40 hover:text-teal font-medium flex items-center justify-start gap-3 px-5 transition-all duration-200 cursor-pointer rounded-xl group"
+            >
+              <Link to="/dashboard">
+                <GlassIconBox color="petrol" size="sm">
+                  <Activity className="h-4 w-4 text-foreground" />
+                </GlassIconBox>
+                <div className="text-left">
+                  <div className="font-semibold text-foreground group-hover:text-teal transition-colors">
+                    {tr("riskDashboard", currentLang)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">See risk indicators</div>
+                </div>
+              </Link>
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* ── Sign Out ── */}
+        <div className="flex justify-end pt-2 pb-6">
+          <Button
+            onClick={logout}
+            variant="ghost"
+            className="h-9 gap-2 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/8 border border-border/60 hover:border-destructive/30 font-medium transition-all duration-200 px-4 rounded-lg"
+          >
+            <LogOut className="h-4 w-4" />
+            {tr("signOut", currentLang)}
+          </Button>
+        </div>
+
+      </div>
     </div>
   );
 }

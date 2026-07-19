@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useLanguage, tr } from "@/lib/i18n";
 import SplitText from "@/components/ui/split-text";
+import { GlassIconBox } from "@/components/ui/glass-icons";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
@@ -93,9 +94,9 @@ function AboutPage() {
                 },
               ].map((step, idx) => (
                 <div key={idx} className="flex gap-4 items-start p-5 rounded-2xl border border-border/80 bg-surface shadow-card-soft transition-all duration-300 hover:border-teal/30">
-                  <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-teal/10 text-teal font-bold text-sm border border-teal/20">
+                  <GlassIconBox color="teal" size="sm" className="text-foreground font-bold text-sm">
                     {idx + 1}
-                  </div>
+                  </GlassIconBox>
                   <div className="space-y-1 text-left">
                     <h3 className="font-display font-bold text-base text-foreground leading-snug">
                       {step.title}
@@ -255,9 +256,9 @@ function AboutPage() {
             <Link to="/privacy" className="group block">
               <Card className="border-border bg-surface shadow-card-soft group-hover:border-teal/50 group-hover:shadow-md transition-all duration-300 h-full">
                 <CardContent className="p-8 flex items-start gap-4">
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal/10 text-teal">
-                    <ShieldCheck className="h-5.5 w-5.5" />
-                  </div>
+                  <GlassIconBox color="teal" size="md">
+                    <ShieldCheck className="h-5 w-5 text-foreground" />
+                  </GlassIconBox>
                   <div className="space-y-1">
                     <h3 className="font-display text-lg font-bold text-foreground group-hover:text-teal transition-colors flex items-center gap-1.5">
                       {tr("privacyPolicy", currentLang)}{" "}
@@ -275,9 +276,9 @@ function AboutPage() {
             <Link to="/clinical-sources" className="group block">
               <Card className="border-border bg-surface shadow-card-soft group-hover:border-teal/50 group-hover:shadow-md transition-all duration-300 h-full">
                 <CardContent className="p-8 flex items-start gap-4">
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal/10 text-teal">
-                    <BookOpen className="h-5.5 w-5.5" />
-                  </div>
+                  <GlassIconBox color="blue" size="md">
+                    <BookOpen className="h-5 w-5 text-foreground" />
+                  </GlassIconBox>
                   <div className="space-y-1">
                     <h3 className="font-display text-lg font-bold text-foreground group-hover:text-teal transition-colors flex items-center gap-1.5">
                       {tr("clinicalSources", currentLang)}{" "}

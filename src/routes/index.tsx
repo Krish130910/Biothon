@@ -119,6 +119,22 @@ function Landing() {
                 asChild
                 size="lg"
                 variant="outline"
+                className="h-12 px-6 text-base font-semibold border-teal/20 text-teal hover:bg-teal/5 hover:border-teal/45 hover:text-teal hover:-translate-y-0.5 transition-all duration-300"
+              >
+                {user ? (
+                  <Link to="/assessment" search={{ step: 5 }}>
+                    Analyze Blood Report
+                  </Link>
+                ) : (
+                  <Link to="/login" search={{ redirect: "/assessment?step=5" }}>
+                    Analyze Blood Report
+                  </Link>
+                )}
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="ghost"
                 className="h-12 px-6 text-base font-semibold hover:bg-accent/40 hover:-translate-y-0.5 transition-all duration-300"
               >
                 <Link to="/about">{tr("learnMore", currentLang)}</Link>
@@ -490,6 +506,22 @@ function Landing() {
                 asChild
                 size="lg"
                 variant="outline"
+                className="h-11 px-6 text-sm font-semibold border-teal/20 text-teal hover:bg-teal/5 hover:border-teal/45 hover:text-teal"
+              >
+                {user ? (
+                  <Link to="/assessment" search={{ step: 5 }}>
+                    Analyze Blood Report
+                  </Link>
+                ) : (
+                  <Link to="/login" search={{ redirect: "/assessment?step=5" }}>
+                    Analyze Blood Report
+                  </Link>
+                )}
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="ghost"
                 className="h-11 px-6 text-sm font-semibold hover:bg-accent/40"
               >
                 <Link to="/about">{tr("readMethodology", currentLang)}</Link>

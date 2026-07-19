@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Droplet, Gauge, Heart, BookOpen } from "lucide-react";
 import { useLanguage, tr } from "@/lib/i18n";
 import SplitText from "@/components/ui/split-text";
+import { GlassIconBox } from "@/components/ui/glass-icons";
 
 export const Route = createFileRoute("/clinical-sources")({
   component: ClinicalSourcesPage,
@@ -57,9 +58,9 @@ function ClinicalSourcesPage() {
             <Card className="border-border bg-surface shadow-card-soft hover:shadow-md hover:border-teal/30 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between">
               <CardContent className="p-6 space-y-5">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-full border border-teal/15 bg-teal/5 text-teal shadow-[inset_0_1px_1px_rgba(61,178,178,0.05)] transition-all duration-300 hover:border-teal/40 hover:bg-teal/10 hover:shadow-[0_0_12px_rgba(61,178,178,0.15)] hover:scale-105">
-                    <Droplet className="h-5 w-5" />
-                  </div>
+                  <GlassIconBox color="teal" size="md">
+                    <Droplet className="h-5 w-5 text-foreground" />
+                  </GlassIconBox>
                   <div>
                     <h3 className="font-display text-lg font-bold text-foreground">
                       {tr("diabetesRisk", currentLang)}
@@ -88,9 +89,9 @@ function ClinicalSourcesPage() {
             <Card className="border-border bg-surface shadow-card-soft hover:shadow-md hover:border-teal/30 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between">
               <CardContent className="p-6 space-y-5">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-full border border-teal/15 bg-teal/5 text-teal shadow-[inset_0_1px_1px_rgba(61,178,178,0.05)] transition-all duration-300 hover:border-teal/40 hover:bg-teal/10 hover:shadow-[0_0_12px_rgba(61,178,178,0.15)] hover:scale-105">
-                    <Gauge className="h-5 w-5" />
-                  </div>
+                  <GlassIconBox color="petrol" size="md">
+                    <Gauge className="h-5 w-5 text-foreground" />
+                  </GlassIconBox>
                   <div>
                     <h3 className="font-display text-lg font-bold text-foreground">
                       {tr("hypertensionRisk", currentLang)}
@@ -119,9 +120,9 @@ function ClinicalSourcesPage() {
             <Card className="border-border bg-surface shadow-card-soft hover:shadow-md hover:border-teal/30 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between">
               <CardContent className="p-6 space-y-5">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-full border border-teal/15 bg-teal/5 text-teal shadow-[inset_0_1px_1px_rgba(61,178,178,0.05)] transition-all duration-300 hover:border-teal/40 hover:bg-teal/10 hover:shadow-[0_0_12px_rgba(61,178,178,0.15)] hover:scale-105">
-                    <Heart className="h-5 w-5" />
-                  </div>
+                  <GlassIconBox color="green" size="md">
+                    <Heart className="h-5 w-5 text-foreground" />
+                  </GlassIconBox>
                   <div>
                     <h3 className="font-display text-lg font-bold text-foreground">
                       {tr("heartDiseaseRisk", currentLang)}

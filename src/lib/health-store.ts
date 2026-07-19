@@ -3,6 +3,7 @@ import type { HealthResult } from "./health.functions";
 import type { Lang } from "./i18n";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import type { LabObservation } from "./schemas-v2";
 
 export const KEY_RESULT = "hg.result.v1";
 export const KEY_PROFILE = "hg.profile.v1";
@@ -38,6 +39,8 @@ export type Profile = {
   symptoms: string;
   schemaVersion?: number;
   engineVersion?: string;
+  labObservations?: LabObservation[];
+  bloodReportOnly?: boolean;
 };
 
 export type StoredResult = HealthResult & {
@@ -62,6 +65,7 @@ export function readProfileCompatibility(raw: any): Profile | null {
     ...raw,
     schemaVersion: raw.schemaVersion ?? 1,
     engineVersion: raw.engineVersion ?? "legacy",
+    labObservations: raw.labObservations ?? [],
   };
 }
 

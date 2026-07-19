@@ -8,184 +8,152 @@ import {
   User,
   ScanLine,
   Brain,
-  Sparkles,
   Activity,
   Stethoscope,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarFooter,
-  useSidebar,
 } from "@/components/ui/sidebar";
-import { useHealthResult, useProfile } from "@/lib/health-store";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useLanguage, tr } from "@/lib/i18n";
 
 const product = [
-  { to: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
-  { to: "/scanner", labelKey: "foodScanner", icon: ScanLine },
-  { to: "/action-plan", labelKey: "actionPlan", icon: Brain },
-  { to: "/progress", labelKey: "progress", icon: Activity },
+  { to: "/dashboard",  labelKey: "dashboard",       icon: LayoutDashboard },
+  { to: "/assessment", labelKey: "healthAssessment", icon: ClipboardList  },
+  { to: "/scanner",    labelKey: "foodScanner",      icon: ScanLine        },
+  { to: "/profile",    labelKey: "profile",          icon: User            },
+] as const;
+
+const clinical = [
+  { to: "/action-plan",   labelKey: "actionPlan",   icon: Brain       },
+  { to: "/progress",      labelKey: "progress",     icon: Activity    },
   { to: "/expert-review", labelKey: "expertReview", icon: Stethoscope },
-  { to: "/profile", labelKey: "profile", icon: User },
 ] as const;
 
 const more = [
-  { to: "/about", labelKey: "about", icon: Info },
+  { to: "/about",   labelKey: "about",   icon: Info    },
   { to: "/contact", labelKey: "support", icon: LifeBuoy },
 ] as const;
 
+type NavItem = {
+  to: string;
+  labelKey: string;
+  icon: React.ElementType;
+};
+
+function NavIcon({ item, pathname, currentLang }: { item: NavItem; pathname: string; currentLang: string }) {
+  const label = tr(item.labelKey, currentLang);
+  const active = pathname === item.to;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          to={item.to}
+          aria-label={label}
+          className={cn(
+            // base — perfectly centered 44×44 rounded square
+            "flex items-center justify-center w-11 h-11 rounded-xl",
+            "border transition-all duration-200 ease-in-out select-none outline-none",
+            active
+              ? // active: soft teal fill + subtle border, no glow, no float
+                "bg-teal/10 text-teal border-teal/25"
+              : // rest: transparent, dim icon; on hover slight tint + icon teal
+                "bg-transparent text-sidebar-foreground/55 border-transparent hover:bg-teal/[0.055] hover:text-teal hover:border-teal/10"
+          )}
+        >
+          <item.icon
+            className="h-[18px] w-[18px] shrink-0 transition-colors duration-200"
+            strokeWidth={active ? 2.3 : 1.9}
+          />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        sideOffset={14}
+        className="bg-popover text-popover-foreground border border-border/60 shadow-md text-[12px] font-semibold py-1.5 px-3 rounded-lg"
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function AppSidebar() {
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const search = useRouterState({ select: (s) => s.location.search });
-  const tabParam = (search as Record<string, unknown>).tab;
-  const [result] = useHealthResult();
   const currentLang = useLanguage();
 
   return (
-    <Sidebar
-      collapsible="icon"
-      className="border-r border-sidebar-border [&_[data-sidebar=sidebar]]:bg-sidebar"
-    >
-      <SidebarHeader className="border-b border-sidebar-border px-4 py-5 bg-sidebar/30 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:items-center transition-all duration-300">
-        <Link
-          to="/"
-          className="flex items-center gap-3 group/brand w-full overflow-hidden group-data-[collapsible=icon]:justify-center"
-        >
-          <div className="relative h-9 w-9 shrink-0 select-none glass-logo">
-            <span className="glass-logo__back" />
-            <span className="glass-logo__front">
-              <ShieldCheck className="h-5 w-5 text-teal" strokeWidth={2.4} />
-            </span>
-          </div>
-          <div className="leading-tight min-w-0 transition-all duration-300 origin-left group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:pointer-events-none group-data-[state=collapsed]:scale-x-75 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:translate-x-4">
-            <div className="font-display text-sm font-bold text-sidebar-foreground truncate tracking-wide">
+    <TooltipProvider delayDuration={300}>
+      <Sidebar
+        collapsible="none"
+        className="border-r border-sidebar-border [&_[data-sidebar=sidebar]]:bg-sidebar w-[80px] min-w-[80px] max-w-[80px] h-screen"
+      >
+        {/* ── Logo ─────────────────────────────── */}
+        <SidebarHeader className="h-14 flex items-center justify-center border-b border-sidebar-border shrink-0">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                to="/"
+                aria-label="HealthGuard Home"
+                className="flex items-center justify-center w-10 h-10 rounded-xl bg-teal/10 border border-teal/20 text-teal transition-all duration-200 hover:bg-teal/15 hover:border-teal/30"
+              >
+                <ShieldCheck className="h-5 w-5" strokeWidth={2.4} />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={14} className="bg-popover text-popover-foreground border border-border/60 shadow-md text-[12px] font-semibold py-1.5 px-3 rounded-lg">
               HealthGuard
-            </div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-teal/85 truncate">
-              {tr("appName", currentLang)}
-            </div>
+            </TooltipContent>
+          </Tooltip>
+        </SidebarHeader>
+
+        {/* ── Navigation ───────────────────────── */}
+        <SidebarContent className="flex flex-col items-center gap-0 py-4 overflow-y-auto overflow-x-hidden scrollbar-none">
+
+          {/* Section 1 — Product */}
+          <nav className="flex flex-col items-center gap-1.5 w-full px-2">
+            {product.map((item) => (
+              <NavIcon key={item.to} item={item} pathname={pathname} currentLang={currentLang} />
+            ))}
+          </nav>
+
+          {/* Divider */}
+          <div className="py-3 w-full px-4">
+            <Separator className="bg-sidebar-border/50" />
           </div>
-        </Link>
-      </SidebarHeader>
 
-      <SidebarContent className="gap-8 py-6">
-        {/* Health Platform Group */}
-        <SidebarGroup className="px-3 group-data-[collapsible=icon]:px-2 transition-all duration-300">
-          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.15em] text-teal/65 mb-2 px-3 group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:px-0">
-            {tr("healthPlatform", currentLang)}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1.5">
-              {product.map((item) => {
-                const labelText = tr(item.labelKey, currentLang);
-                const active = pathname === item.to;
-                return (
-                  <SidebarMenuItem key={item.labelKey}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={active}
-                      tooltip={labelText}
-                      className={cn(
-                        "relative transition-all duration-300 h-10 border-l-2 pr-3 pl-[10px] flex items-center group-data-[collapsible=icon]:border-l-0 group-data-[collapsible=icon]:p-0",
-                        active
-                          ? "bg-teal/10 text-teal border-teal rounded-r-lg rounded-l-none font-semibold"
-                          : "text-sidebar-foreground/75 border-transparent hover:text-sidebar-foreground hover:bg-sidebar-accent hover:translate-x-1 rounded-lg",
-                      )}
-                    >
-                      <Link
-                        to={item.to}
-                        className="flex items-center gap-3 w-full justify-start group-data-[collapsible=icon]:justify-center"
-                      >
-                        <div
-                          className={cn(
-                            "relative flex items-center justify-center shrink-0",
-                            active
-                              ? "text-teal"
-                              : "text-sidebar-foreground/60 group-hover/btn:text-sidebar-foreground",
-                          )}
-                        >
-                          <item.icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
-                        </div>
-                        <span className="text-sm tracking-wide transition-all duration-300 origin-left group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:pointer-events-none group-data-[state=collapsed]:translate-x-3 group-data-[state=collapsed]:w-0 truncate">
-                          {labelText}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          {/* Section 2 — Clinical */}
+          <nav className="flex flex-col items-center gap-1.5 w-full px-2">
+            {clinical.map((item) => (
+              <NavIcon key={item.to} item={item} pathname={pathname} currentLang={currentLang} />
+            ))}
+          </nav>
 
-        {/* Resources Group */}
-        <SidebarGroup className="px-3 group-data-[collapsible=icon]:px-2 transition-all duration-300">
-          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.15em] text-teal/65 mb-2 px-3 group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:px-0">
-            {tr("resources", currentLang)}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1.5">
-              {more.map((item) => {
-                const labelText = tr(item.labelKey, currentLang);
-                const active = pathname === item.to;
-                return (
-                  <SidebarMenuItem key={item.labelKey}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={active}
-                      tooltip={labelText}
-                      className={cn(
-                        "relative transition-all duration-300 h-10 border-l-2 pr-3 pl-[10px] flex items-center group-data-[collapsible=icon]:border-l-0 group-data-[collapsible=icon]:p-0",
-                        active
-                          ? "bg-teal/10 text-teal border-teal rounded-r-lg rounded-l-none font-semibold"
-                          : "text-sidebar-foreground/75 border-transparent hover:text-sidebar-foreground hover:bg-sidebar-accent hover:translate-x-1 rounded-lg",
-                      )}
-                    >
-                      <Link
-                        to={item.to}
-                        className="flex items-center gap-3 w-full justify-start group-data-[collapsible=icon]:justify-center"
-                      >
-                        <div
-                          className={cn(
-                            "relative flex items-center justify-center shrink-0",
-                            active
-                              ? "text-teal"
-                              : "text-sidebar-foreground/60 group-hover/btn:text-sidebar-foreground",
-                          )}
-                        >
-                          <item.icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
-                        </div>
-                        <span className="text-sm tracking-wide transition-all duration-300 origin-left group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:pointer-events-none group-data-[state=collapsed]:translate-x-3 group-data-[state=collapsed]:w-0 truncate">
-                          {labelText}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+          {/* Divider */}
+          <div className="py-3 w-full px-4">
+            <Separator className="bg-sidebar-border/50" />
+          </div>
 
-      <SidebarFooter className="p-4 mt-auto border-t border-sidebar-border/30 bg-sidebar/20 flex items-center justify-center transition-all duration-300 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:h-0 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:border-t-0">
-        <div className="text-[10px] text-sidebar-foreground/45 uppercase tracking-[0.2em] font-semibold font-display truncate group-data-[collapsible=icon]:opacity-0 transition-opacity duration-300">
-          HealthGuard v1.0
-        </div>
-      </SidebarFooter>
-    </Sidebar>
+          {/* Section 3 — Resources */}
+          <nav className="flex flex-col items-center gap-1.5 w-full px-2">
+            {more.map((item) => (
+              <NavIcon key={item.to} item={item} pathname={pathname} currentLang={currentLang} />
+            ))}
+          </nav>
+        </SidebarContent>
+
+        {/* ── Footer version tag ───────────────── */}
+        <SidebarFooter className="h-10 flex items-center justify-center border-t border-sidebar-border/40 shrink-0">
+          <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/30 select-none">
+            v1.0
+          </span>
+        </SidebarFooter>
+      </Sidebar>
+    </TooltipProvider>
   );
 }

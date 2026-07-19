@@ -188,6 +188,10 @@ export const translations: Dict = {
     hi: "साइन इन",
     gu: "સાઇન ઇન",
   },
+  assessment: { en: "Assessment", hi: "मूल्यांकन", gu: "મૂલ્યાંકન" },
+  healthAssessment: { en: "Health Assessment", hi: "स्वास्थ्य मूल्यांकन", gu: "સ્વાસ્થ્ય મૂલ્યાંકન" },
+  bloodReportAnalysis: { en: "Blood Report Analysis", hi: "रक्त रिपोर्ट विश्लेषण", gu: "रक्त રિપોર્ટ વિશ્લેષણ" },
+  dashboard: { en: "Dashboard", hi: "डैशबोर्ड", gu: "ડેશબોર્ડ" },
   brandSubtitle: {
     en: "Preventive Health Intelligence",
     hi: "निवारक स्वास्थ्य इंटेलिजेंस",
@@ -406,6 +410,8 @@ export const translations: Dict = {
   // Sidebar keys
   home: { en: "Home", hi: "होम", gu: "હોમ" },
   assessment: { en: "Assessment", hi: "मूल्यांकन", gu: "મૂલ્યાંકન" },
+  healthAssessment: { en: "Health Assessment", hi: "स्वास्थ्य मूल्यांकन", gu: "સ્વાસ્થ્ય મૂલ્યાંકન" },
+  bloodReportAnalysis: { en: "Blood Report Analysis", hi: "रक्त रिपोर्ट विश्लेषण", gu: "રક્ત રિપોર્ટ વિશ્લેષણ" },
   dashboard: { en: "Dashboard", hi: "डैशबोर्ड", gu: "ડેશબોર્ડ" },
   foodScanner: { en: "Food Scanner", hi: "खाद्य स्कैनर", gu: "ફૂડ સ્કેનર" },
   actionPlan: { en: "Action Plan", hi: "कार्य योजना", gu: "એક્શન પ્લાન" },
@@ -922,7 +928,7 @@ export const translations: Dict = {
     gu: "જો તમે સક્રિયપણે જીવનશૈલીમાં ફેરફાર પર કામ કરી રહ્યા હોવ તો અમે દર 4-8 અઠવાડિયે પુનઃમૂલ્યાંકન કરવાની ભલામણ કરીએ છીએ, અને સામાન્ય દેખરેખ માટે ઓછામાં ઓછું ત્રિમાસિક.",
   },
   clinicalPlatform: {
-    en: "HealthGuard Clinical Platform",
+    en: "",
     hi: "हेल्थगार्ड क्लिनिकल प्लेटफॉर्म",
     gu: "હેલ્થગાર્ડ ક્લિનિકલ પ્લેટફોર્મ",
   },
@@ -1232,8 +1238,10 @@ export const translations: Dict = {
   s4Desc: {
     en: "What you're feeling",
     hi: "आप क्या महसूस कर रहे हैं",
-    gu: "તમે શું અનુભવી રહ્યા છો",
+    gu: "તમે શું अनुभवी રહ્યા છો",
   },
+  s5Label: { en: "Lab Report", hi: "लैब रिपोर्ट", gu: "લેબ રિપોર્ટ" },
+  s5Desc: { en: "Upload test results", hi: "परीक्षण परिणाम", gu: "લેબ પરિણામો" },
   yrs: { en: "yrs", hi: "वर्ष", gu: "વર્ષ" },
   cm: { en: "cm", hi: "सेमी", gu: "સેમી" },
   kg: { en: "kg", hi: "किग्रा", gu: "કિગ્રા" },

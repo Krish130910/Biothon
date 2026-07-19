@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Link, useNavigate } from "@tanstack/react-rout
 import { useEffect } from "react";
 import { useLanguage, tr } from "@/lib/i18n";
 import { useAuth } from "@/contexts/auth-context";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -65,14 +65,10 @@ function AppLayout() {
   return (
     <SidebarProvider defaultOpen>
       <Toaster richColors position="top-center" />
-      <div className="flex min-h-screen w-full bg-background">
+      <div className="flex h-screen w-full overflow-hidden bg-background">
         <AppSidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur">
-            <SidebarTrigger className="-ml-1" />
-            <div className="hidden text-sm font-medium text-muted-foreground sm:block">
-              {tr("clinicalPlatform", currentLang)}
-            </div>
 
             <div className="ml-auto flex items-center gap-4">
               <ThemeToggle />
@@ -129,7 +125,7 @@ function AppLayout() {
               </DropdownMenu>
             </div>
           </header>
-          <main className="min-w-0 flex-1">
+          <main className="min-w-0 flex-1 overflow-y-auto">
             <Outlet />
           </main>
         </div>

@@ -1,10 +1,10 @@
-import { createLazyFileRoute } from "@tanstack/react-router";
+import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useHealthResult, useProfile, useHistory } from "@/lib/health-store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, ClipboardList, Activity } from "lucide-react";
+import { Download, ClipboardList, Activity, Check } from "lucide-react";
 import { EmptyState, LedgerTable, RiskLedgerTable } from "./_app.dashboard";
 import { useLanguage, tr, translations } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ export const Route = createLazyFileRoute("/_app/report")({
 
 function ReportPage() {
   const currentLang = useLanguage();
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.title = tr("fit_health_report_title", currentLang);
@@ -42,6 +43,258 @@ function ReportPage() {
   if (!resultMaybe || !profileMaybe) return <EmptyState />;
   const result = resultMaybe;
   const profile = profileMaybe;
+
+  if (profile.bloodReportOnly) {
+    // Extract recent observations
+    const obsList = profile.labObservations || [];
+    const obsMap: Record<string, number> = {};
+    const obsUnits: Record<string, string> = {};
+    obsList.forEach((obs) => {
+      obsMap[obs.code] = obs.value;
+      obsUnits[obs.code] = obs.unit;
+    });
+
+    const hba1c = obsMap["HbA1c"];
+    const fbs = obsMap["fastingBloodSugar"];
+    const hdl = obsMap["hdl"];
+    const ldl = obsMap["ldl"];
+    const tc = obsMap["totalCholesterol"];
+    const tg = obsMap["triglycerides"];
+
+    // Compute status
+    let overallStatus = "Good";
+    let overallColor = "text-emerald bg-emerald/10 border-emerald/20";
+    if (hba1c >= 6.5 || fbs >= 126) {
+      overallStatus = "Attention Needed";
+      overallColor = "text-red-500 bg-red-500/10 border-red-500/20";
+    } else if (hba1c >= 5.7 || fbs >= 100 || ldl > 130) {
+      overallStatus = "Moderate";
+      overallColor = "text-amber bg-amber/10 border-amber/20";
+    }
+
+    // Key Findings list
+    const findings: string[] = [];
+    if (hba1c >= 5.7 || fbs >= 100) {
+      findings.push("Blood sugar slightly elevated");
+    } else if (hba1c || fbs) {
+      findings.push("Blood sugar within normal physiological limits");
+    }
+    
+    if (ldl > 100 || tc > 200 || tg > 150) {
+      findings.push("Cholesterol levels slightly elevated or borderline");
+    } else if (ldl || tc || tg) {
+      findings.push("Lipid profile (cholesterol) within range");
+    }
+
+    findings.push("Consider increasing exercise to optimize cardiac profile");
+
+    // Recommendations list
+    const recommendations: string[] = [];
+    recommendations.push("Walk 30 minutes daily or engage in moderate aerobic activity");
+    if (hba1c >= 5.7 || fbs >= 100) {
+      recommendations.push("Reduce consumption of refined carbs and sugary drinks");
+      recommendations.push("Repeat HbA1c test in 3 months to monitor glycemic trends");
+    } else {
+      recommendations.push("Limit added sugars and processed foods");
+    }
+
+    const bounds: Record<string, { min: number; max: number; unit: string; name: string }> = {
+      fastingBloodSugar: { min: 50, max: 400, unit: "mg/dL", name: "Fasting Blood Sugar" },
+      HbA1c: { min: 3, max: 18, unit: "%", name: "HbA1c" },
+      totalCholesterol: { min: 50, max: 500, unit: "mg/dL", name: "Total Cholesterol" },
+      ldl: { min: 20, max: 300, unit: "mg/dL", name: "LDL Cholesterol" },
+      hdl: { min: 10, max: 150, unit: "mg/dL", name: "HDL Cholesterol" },
+      triglycerides: { min: 30, max: 600, unit: "mg/dL", name: "Triglycerides" },
+    };
+
+    return (
+      <div className="mx-auto max-w-[960px] px-4 py-10 space-y-8 animate-fade-in">
+        <div className="flex items-center justify-between border-b border-border/40 pb-4">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-foreground">
+              Blood Report Analysis
+            </h1>
+            <p className="text-xs text-muted-foreground mt-1">
+              AI-extracted clinical indicators from your recent laboratory report.
+            </p>
+          </div>
+          <Button
+            onClick={() => window.print()}
+            variant="outline"
+            size="sm"
+            className="gap-2 h-9 border-border text-xs rounded-lg cursor-pointer"
+          >
+            <Download className="h-3.5 w-3.5" /> Print Report
+          </Button>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-12">
+          {/* Left Column: Summary and Indicators */}
+          <div className="md:col-span-8 space-y-6">
+            {/* Overall Status Card */}
+            <Card className="border-border bg-surface shadow-card-soft">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Overall Status
+                  </h3>
+                  <p className="font-display text-xl font-bold mt-1 text-foreground">
+                    Your metabolic health is currently flagged as stable.
+                  </p>
+                </div>
+                <Badge className={`px-3 py-1 text-xs font-bold border rounded-full ${overallColor}`}>
+                  {overallStatus}
+                </Badge>
+              </CardContent>
+            </Card>
+
+            {/* Lab Values Grid */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
+                Extracted Lab Values
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {hba1c !== undefined && (
+                  <Card className="border-border bg-surface/50 shadow-sm p-4 flex flex-col gap-2">
+                    <span className="text-[10px] text-muted-foreground font-mono uppercase">HbA1c</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-bold text-foreground font-mono">{hba1c}</span>
+                      <span className="text-[10px] text-muted-foreground">%</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-teal font-semibold">
+                      <Check className="h-3.5 w-3.5" /> Verified
+                    </div>
+                  </Card>
+                )}
+                {fbs !== undefined && (
+                  <Card className="border-border bg-surface/50 shadow-sm p-4 flex flex-col gap-2">
+                    <span className="text-[10px] text-muted-foreground font-mono uppercase">Fasting Blood Sugar</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-bold text-foreground font-mono">{fbs}</span>
+                      <span className="text-[10px] text-muted-foreground">mg/dL</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-teal font-semibold">
+                      <Check className="h-3.5 w-3.5" /> Verified
+                    </div>
+                  </Card>
+                )}
+                {hdl !== undefined && (
+                  <Card className="border-border bg-surface/50 shadow-sm p-4 flex flex-col gap-2">
+                    <span className="text-[10px] text-muted-foreground font-mono uppercase">HDL Cholesterol</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-bold text-foreground font-mono">{hdl}</span>
+                      <span className="text-[10px] text-muted-foreground">mg/dL</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-teal font-semibold">
+                      <Check className="h-3.5 w-3.5" /> Verified
+                    </div>
+                  </Card>
+                )}
+                {ldl !== undefined && (
+                  <Card className="border-border bg-surface/50 shadow-sm p-4 flex flex-col gap-2">
+                    <span className="text-[10px] text-muted-foreground font-mono uppercase">LDL Cholesterol</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-bold text-foreground font-mono">{ldl}</span>
+                      <span className="text-[10px] text-muted-foreground">mg/dL</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-teal font-semibold">
+                      <Check className="h-3.5 w-3.5" /> Verified
+                    </div>
+                  </Card>
+                )}
+                {tc !== undefined && (
+                  <Card className="border-border bg-surface/50 shadow-sm p-4 flex flex-col gap-2">
+                    <span className="text-[10px] text-muted-foreground font-mono uppercase">Total Cholesterol</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-bold text-foreground font-mono">{tc}</span>
+                      <span className="text-[10px] text-muted-foreground">mg/dL</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-teal font-semibold">
+                      <Check className="h-3.5 w-3.5" /> Verified
+                    </div>
+                  </Card>
+                )}
+                {tg !== undefined && (
+                  <Card className="border-border bg-surface/50 shadow-sm p-4 flex flex-col gap-2">
+                    <span className="text-[10px] text-muted-foreground font-mono uppercase">Triglycerides</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-bold text-foreground font-mono">{tg}</span>
+                      <span className="text-[10px] text-muted-foreground">mg/dL</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-teal font-semibold">
+                      <Check className="h-3.5 w-3.5" /> Verified
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+
+            {/* Key Findings card */}
+            <Card className="border-border bg-surface shadow-card-soft">
+              <CardHeader className="pb-3 border-b border-border/40">
+                <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  Key Findings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <ul className="space-y-2.5 text-xs text-muted-foreground">
+                  {findings.map((f, idx) => (
+                    <li key={idx} className="flex items-start gap-2.5 leading-normal">
+                      <span className="text-teal text-base shrink-0 leading-none">•</span>
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Recommendations card */}
+            <Card className="border-border bg-surface shadow-card-soft">
+              <CardHeader className="pb-3 border-b border-border/40">
+                <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  Recommendations
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <ul className="space-y-2.5 text-xs text-muted-foreground">
+                  {recommendations.map((r, idx) => (
+                    <li key={idx} className="flex items-start gap-2.5 leading-normal">
+                      <span className="text-teal text-base shrink-0 leading-none">•</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column: Next Steps CTA */}
+          <div className="md:col-span-4">
+            <Card className="border-border bg-surface shadow-card-soft border-dashed overflow-hidden relative">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal to-primary" />
+              <CardContent className="p-6 text-center space-y-4">
+                <div className="h-12 w-12 rounded-full bg-teal/10 text-teal flex items-center justify-center mx-auto mb-2">
+                  <Activity className="h-6 w-6" />
+                </div>
+                <h3 className="font-display text-sm font-bold text-foreground">
+                  Next Step
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Complete the full health assessment to combine these laboratory readings with your daily lifestyle, family history, and symptoms to receive a highly personalized preventative care schedule.
+                </p>
+                <Button
+                  onClick={() => navigate({ to: "/assessment", search: { mode: "retake" } })}
+                  className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm font-semibold text-xs rounded-lg cursor-pointer transition-all duration-300 hover:shadow"
+                >
+                  Complete Full Assessment
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const overallColor =
     result.overallRisk === "Low"

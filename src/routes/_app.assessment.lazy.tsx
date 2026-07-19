@@ -1,5 +1,5 @@
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import {
   ArrowLeft,
@@ -9,6 +9,13 @@ import {
   Sparkles,
   Check,
   HelpCircle,
+  Camera,
+  Upload,
+  ScanLine,
+  AlertTriangle,
+  FileText,
+  CheckCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { isConfigured, db, auth } from "@/lib/firebase";
@@ -32,7 +39,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
-import { assessHealth, type HealthResult } from "@/lib/health.functions";
+import { assessHealth, assessLabReportImage, type HealthResult } from "@/lib/health.functions";
 import {
   useHealthResult,
   useProfile,
@@ -54,10 +61,11 @@ const steps = [
   { id: 2, labelKey: "s2Label" as const, descKey: "s2Desc" as const },
   { id: 3, labelKey: "s3Label" as const, descKey: "s3Desc" as const },
   { id: 4, labelKey: "s4Label" as const, descKey: "s4Desc" as const },
+  { id: 5, labelKey: "s5Label" as const, descKey: "s5Desc" as const },
 ];
 
 function AssessmentPage() {
-  const { mode } = Route.useSearch();
+  const { mode, step: initialStep } = Route.useSearch();
   const { hasCompletedAssessment, loading: authLoading, setHasCompletedAssessment } = useAuth();
   const navigate = useNavigate();
 
@@ -65,7 +73,7 @@ function AssessmentPage() {
   const [profile, setProfile] = useProfile();
   const [, setResult] = useHealthResult();
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(initialStep ?? 1);
   const [loading, setLoading] = useState(false);
 
   const form = useForm<Profile>({
@@ -78,8 +86,208 @@ function AssessmentPage() {
       exercise: "light",
       familyHistory: "",
       symptoms: "",
+      labObservations: [],
     },
   });
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const [extractedLabs, setExtractedLabs] = useState<Record<string, { value: number; unit: string; checked: boolean; error?: string }>>({});
+  const [reportDate, setReportDate] = useState<string>("");
+  const [useExistingReport, setUseExistingReport] = useState(true);
+
+  const existingLabs = profile?.labObservations || [];
+  const hasExistingReport = existingLabs.length > 0;
+
+  useEffect(() => {
+    if (step === 5 && hasExistingReport && useExistingReport) {
+      form.setValue("labObservations", existingLabs);
+    }
+  }, [step, useExistingReport, hasExistingReport, existingLabs, form]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  const bounds: Record<string, { min: number; max: number; unit: string; name: string }> = {
+    fastingBloodSugar: { min: 50, max: 400, unit: "mg/dL", name: "Fasting Blood Sugar" },
+    HbA1c: { min: 3, max: 18, unit: "%", name: "HbA1c" },
+    totalCholesterol: { min: 50, max: 500, unit: "mg/dL", name: "Total Cholesterol" },
+    ldl: { min: 20, max: 300, unit: "mg/dL", name: "LDL Cholesterol" },
+    hdl: { min: 10, max: 150, unit: "mg/dL", name: "HDL Cholesterol" },
+    triglycerides: { min: 30, max: 600, unit: "mg/dL", name: "Triglycerides" },
+  };
+
+  const initializeEmptyLabs = () => {
+    const empty: Record<string, { value: number; unit: string; checked: boolean; error?: string }> = {};
+    Object.entries(bounds).forEach(([key, rule]) => {
+      empty[key] = {
+        value: 0,
+        unit: rule.unit,
+        checked: false,
+      };
+    });
+    setExtractedLabs(empty);
+    setReportDate(new Date().toISOString().split("T")[0]);
+  };
+
+  useEffect(() => {
+    initializeEmptyLabs();
+  }, []);
+
+  const startCamera = async () => {
+    setSelectedFile(null);
+    setExtractedLabs({});
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setIsCameraActive(true);
+      toast.success("Camera activated successfully.");
+    } catch (err) {
+      console.error("Camera access error:", err);
+      toast.error("Could not access camera. Please upload a file instead.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  const processOCRResult = (result: any) => {
+    const initialExtracted: Record<string, { value: number; unit: string; checked: boolean; error?: string }> = {};
+
+    Object.entries(bounds).forEach(([key, rule]) => {
+      const fieldData = result[key];
+      if (fieldData && typeof fieldData.value === "number") {
+        const val = fieldData.value;
+        const u = fieldData.unit || rule.unit;
+        const inBounds = val >= rule.min && val <= rule.max;
+        initialExtracted[key] = {
+          value: val,
+          unit: u,
+          checked: inBounds,
+          error: inBounds ? undefined : `Value out of sane range (${rule.min}-${rule.max} ${rule.unit})`,
+        };
+      } else {
+        initialExtracted[key] = {
+          value: 0,
+          unit: rule.unit,
+          checked: false,
+        };
+      }
+    });
+
+    setExtractedLabs(initialExtracted);
+    if (result.reportDate) {
+      setReportDate(result.reportDate);
+    } else {
+      setReportDate(new Date().toISOString().split("T")[0]);
+    }
+  };
+
+  const captureFrame = async () => {
+    if (!videoRef.current) return;
+    setIsScanning(true);
+
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not construct 2D context");
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg");
+      const base64Data = dataUrl.split(",")[1];
+
+      stopCamera();
+
+      const result = await assessLabReportImage({
+        base64Image: base64Data,
+        mimeType: "image/jpeg",
+      });
+
+      processOCRResult(result);
+      toast.success("Lab report scanned successfully!");
+    } catch (err: any) {
+      console.error("Vision API error:", err);
+      toast.error("Failed to analyze lab report. Please enter manually.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    setIsScanning(true);
+    stopCamera();
+
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(",")[1];
+          resolve(base64);
+        };
+      });
+      reader.readAsDataURL(file);
+      const base64Data = await base64Promise;
+
+      const result = await assessLabReportImage({
+        base64Image: base64Data,
+        mimeType: file.type || "image/jpeg",
+      });
+
+      processOCRResult(result);
+      toast.success("Lab report analyzed successfully!");
+    } catch (err: any) {
+      console.error("File upload OCR error:", err);
+      toast.error("Failed to extract lab report. Please check the image and try again.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const saveLabObservations = () => {
+    const obsList: any[] = [];
+    Object.entries(extractedLabs).forEach(([code, info]) => {
+      if (info.checked && info.value > 0) {
+        const rule = bounds[code];
+        const inBounds = info.value >= rule.min && info.value <= rule.max;
+        obsList.push({
+          code,
+          value: Number(info.value),
+          unit: info.unit,
+          observedAt: reportDate ? new Date(reportDate).toISOString() : new Date().toISOString(),
+          isVerified: inBounds,
+          verifiedBy: "user",
+        });
+      }
+    });
+
+    form.setValue("labObservations", obsList);
+  };
 
   const total = steps.length;
   const pct = (step / total) * 100;
@@ -88,13 +296,20 @@ function AssessmentPage() {
     const initiatingUid = auth.currentUser?.uid || "guest";
     setLoading(true);
     try {
+      const isBloodReportOnly = initialStep === 5;
+      const updatedValues = {
+        ...values,
+        bloodReportOnly: isBloodReportOnly,
+      };
+
       const res = (await assessHealth({
         data: {
-          ...values,
+          ...updatedValues,
           age: Number(values.age),
           heightCm: Number(values.heightCm),
           weightKg: Number(values.weightKg),
           language: lang,
+          labObservations: values.labObservations || [],
         },
       })) as HealthResult & { bmi: number };
 
@@ -105,7 +320,7 @@ function AssessmentPage() {
       }
 
       // 1. Save profile, result, and history locally
-      setProfile(values);
+      setProfile(updatedValues);
       setResult(res);
 
       const newHistoryEntry = {
@@ -155,6 +370,10 @@ function AssessmentPage() {
         toast.error("Please fill in all required fields correctly before continuing.");
         return;
       }
+    }
+
+    if (step === 5) {
+      saveLabObservations();
     }
 
     if (step < total) setStep(step + 1);
@@ -421,23 +640,252 @@ function AssessmentPage() {
             )}
 
             {step === 4 && (
-              <div className="space-y-6">
-                <Field
-                  label={tr("symptoms", lang)}
-                  tooltip={tr("symptomsTooltip", lang)}
-                  helperText={tr("symptomsHelper", lang)}
-                  error={form.formState.errors.symptoms?.message}
-                >
-                  <Textarea
-                    rows={4}
-                    placeholder={tr("symptomsPlaceholder", lang)}
-                    className="border-border/80 bg-surface/50 transition-all duration-200 focus:border-teal focus:ring-teal focus-visible:ring-teal"
-                    {...form.register("symptoms")}
-                  />
-                </Field>
+              <Field
+                label={tr("symptoms", lang)}
+                tooltip={tr("symptomsTooltip", lang)}
+                helperText={tr("symptomsHelper", lang)}
+                error={form.formState.errors.symptoms?.message}
+              >
+                <Textarea
+                  rows={4}
+                  placeholder={tr("symptomsPlaceholder", lang)}
+                  className="border-border/80 bg-surface/50 transition-all duration-200 focus:border-teal focus:ring-teal focus-visible:ring-teal"
+                  {...form.register("symptoms")}
+                />
+              </Field>
+            )}
+
+            {step === 5 && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="text-center max-w-md mx-auto space-y-2 mb-6">
+                    <h3 className="font-display text-lg font-bold text-foreground">
+                      Do you have a recent blood test report?
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Upload a photo, PDF, or capture it with your camera to extract key health markers automatically. You can also skip this step.
+                    </p>
+                  </div>
+
+                  {hasExistingReport && (
+                    <div className="max-w-md mx-auto rounded-2xl border border-teal/20 bg-teal/5 p-5 shadow-sm space-y-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-teal shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground">Verified Blood Report Found</h4>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            We found a verified blood report uploaded {(() => {
+                              if (!profile?.updatedAt) return "recently";
+                              const days = Math.floor(Math.abs(new Date().getTime() - new Date(profile.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+                              return days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
+                            })()}.
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseExistingReport(true);
+                            form.setValue("labObservations", existingLabs);
+                          }}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold text-left transition-all cursor-pointer ${
+                            useExistingReport
+                              ? "bg-teal text-white border-teal shadow-md"
+                              : "bg-surface text-foreground border-border/80 hover:bg-surface-muted/30"
+                          }`}
+                        >
+                          <Check className="h-4 w-4 shrink-0" />
+                          Use existing values
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseExistingReport(false);
+                            form.setValue("labObservations", []);
+                            initializeEmptyLabs();
+                          }}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold text-left transition-all cursor-pointer ${
+                            !useExistingReport
+                              ? "bg-teal text-white border-teal shadow-md"
+                              : "bg-surface text-foreground border-border/80 hover:bg-surface-muted/30"
+                          }`}
+                        >
+                          <Upload className="h-4 w-4 shrink-0" />
+                          Upload another report
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!(hasExistingReport && useExistingReport) ? (
+                    <div className="grid gap-6 md:grid-cols-2">
+                      {/* Upload/Camera Column */}
+                  <div className="space-y-4">
+                    <Card className="border-border bg-surface-muted/10 shadow-sm">
+                      <CardContent className="p-6">
+                        {isCameraActive ? (
+                          <div className="space-y-4">
+                            <div className="relative overflow-hidden rounded-xl bg-black aspect-video border border-border">
+                              <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                onClick={captureFrame}
+                                disabled={isScanning}
+                                className="flex-1 h-10 bg-teal text-white hover:bg-teal/90 gap-2 font-semibold text-xs rounded-lg cursor-pointer"
+                              >
+                                <Camera className="h-4 w-4" /> Capture Photo
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={stopCamera}
+                                className="h-10 text-xs text-red-500 hover:bg-red-55 cursor-pointer font-semibold"
+                              >
+                                Close
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-3">
+                            <div className="flex gap-2">
+                              <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border/80 rounded-xl p-6 bg-surface hover:bg-surface-muted/20 transition-colors relative group cursor-pointer">
+                                <input
+                                  type="file"
+                                  accept="image/*,application/pdf"
+                                  onChange={handleFileUpload}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                  disabled={isScanning}
+                                />
+                                <Upload className="h-5 w-5 text-teal mb-2 group-hover:scale-105 transition-transform duration-300" />
+                                <p className="text-[11px] font-semibold text-foreground text-center">
+                                  {selectedFile ? selectedFile.name : "Click or drag report photo"}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={startCamera}
+                                disabled={isScanning}
+                                className="h-auto flex flex-col items-center justify-center gap-2 border-teal/20 text-teal hover:bg-teal/5 cursor-pointer font-semibold rounded-xl px-4"
+                              >
+                                <Camera className="h-5 w-5" />
+                                <span className="text-[10px]">Use Camera</span>
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {isScanning && (
+                          <div className="mt-4 flex items-center justify-center gap-2.5 text-xs text-muted-foreground p-3 border border-border bg-surface rounded-xl">
+                            <Loader2 className="h-4 w-4 animate-spin text-teal" />
+                            <span>AI is extracting biomarkers from your report...</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <div className="flex justify-between items-center px-1">
+                      <span className="text-[11px] text-muted-foreground">
+                        Report Date (optional):
+                      </span>
+                      <Input
+                        type="date"
+                        value={reportDate}
+                        onChange={(e) => setReportDate(e.target.value)}
+                        className="h-8 text-xs max-w-[150px] border-border bg-surface"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Confirmation / Entry Column */}
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-border bg-surface p-4 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                        <span className="text-xs font-bold text-foreground">
+                          Verify & Edit Extracted Values
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={initializeEmptyLabs}
+                          className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          Reset
+                        </Button>
+                      </div>
+
+                      <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                        {Object.entries(extractedLabs).map(([code, info]) => {
+                          const rule = bounds[code];
+                          return (
+                            <div
+                              key={code}
+                              className={`p-3 rounded-lg border transition-all ${
+                                info.checked
+                                  ? "border-teal/30 bg-teal/5 shadow-[inset_0_1px_1px_rgba(20,184,166,0.02)]"
+                                  : "border-border/60 bg-surface-muted/20"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={info.checked}
+                                    onChange={() => handleToggleChecked(code)}
+                                    className="rounded border-border text-teal focus:ring-teal h-3.5 w-3.5 cursor-pointer"
+                                  />
+                                  <span className="text-xs font-semibold text-foreground">
+                                    {rule.name}
+                                  </span>
+                                </label>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  Range: {rule.min}-{rule.max} {rule.unit}
+                                </span>
+                              </div>
+
+                              <div className="mt-2 flex items-center gap-2">
+                                <div className="relative flex-1">
+                                  <Input
+                                    type="number"
+                                    step={code === "HbA1c" ? "0.1" : "1"}
+                                    value={info.value || ""}
+                                    onChange={(e) => handleExtractedValChange(code, e.target.value)}
+                                    className="h-8 text-xs border-border bg-surface pr-12 focus:border-teal focus:ring-teal"
+                                    placeholder="Enter value"
+                                  />
+                                  <span className="absolute right-3 top-2 text-[10px] text-muted-foreground font-mono">
+                                    {rule.unit}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {info.error && (
+                                <p className="text-[10px] font-medium text-red-500 mt-1 flex items-center gap-1.5 leading-normal">
+                                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                                  {info.error}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
                 {/* Pre-submission Review Card (Styled like a clean clinical record sheet) */}
-                <div className="rounded-xl border border-border/70 bg-surface-muted/30 p-6 shadow-sm">
+                <div className="rounded-xl border border-border/70 bg-surface-muted/30 p-6 shadow-sm mt-6">
                   <div className="flex items-center gap-2 mb-4 border-b border-border/60 pb-3">
                     <span className="grid h-5 w-5 place-items-center rounded-full bg-teal/10 text-teal">
                       <Check className="h-3 w-3" />
@@ -486,6 +934,26 @@ function AssessmentPage() {
                         {tr(form.watch("exercise"), lang)}
                       </span>
                     </div>
+                    
+                    {form.watch("labObservations") && (form.watch("labObservations")?.length ?? 0) > 0 && (
+                      <div className="sm:col-span-2 flex flex-col gap-1.5 border-b border-border/40 pb-2.5">
+                        <span className="text-muted-foreground text-xs font-mono uppercase tracking-wider">
+                          Verified Lab Observations
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                          {form.watch("labObservations")?.map((obs: any) => {
+                            const name = bounds[obs.code]?.name || obs.code;
+                            return (
+                              <div key={obs.code} className="flex justify-between items-center text-xs bg-surface-muted/50 p-2 rounded border border-border/30">
+                                <span className="font-medium text-foreground">{name}</span>
+                                <span className="font-bold text-teal font-mono">{obs.value} {obs.unit}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="sm:col-span-2 flex flex-col gap-1.5 border-b border-border/40 pb-2.5">
                       <span className="text-muted-foreground text-xs font-mono uppercase tracking-wider">
                         {tr("familyHistory", lang)}
@@ -505,7 +973,7 @@ function AssessmentPage() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2.5 rounded-lg border border-border bg-accent/40 p-4">
+                <div className="flex items-start gap-2.5 rounded-lg border border-border bg-accent/40 p-4 mt-6">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-teal" />
                   <p className="text-xs leading-relaxed text-accent-foreground">
                     {tr("assessmentDisclaimer", lang)}
