@@ -45,6 +45,7 @@ _METADATA_PATH = _HI_DIR / "models" / "diabetes_model_metadata.json"
 _model = None
 _model_metadata: dict = {}
 _model_installed: bool = False
+_active_threshold_cutoff: Optional[float] = None
 
 try:
     import joblib as _joblib
@@ -60,8 +61,13 @@ try:
             f"accepted states {_ACCEPTED_LIFECYCLE_STATES}."
         )
 
+    _loaded_cutoff = float(_loaded_meta["active_threshold"]["mean_cutoff"])
+    if not 0.0 <= _loaded_cutoff <= 1.0:
+        raise ValueError("active_threshold.mean_cutoff must be between 0 and 1.")
+
     _model = _loaded
     _model_metadata = _loaded_meta
+    _active_threshold_cutoff = _loaded_cutoff
     _model_installed = True
     log.info(
         "Model loaded. lifecycle=%s sample_size=%s",
@@ -338,7 +344,6 @@ def evaluate_diabetes(context: HealthContext):
 
     if _model is not None and _model_installed:
         try:
-            import numpy as np
             import pandas as pd
 
             a = context.assessment
@@ -347,9 +352,7 @@ def evaluate_diabetes(context: HealthContext):
                 if a.heightCm and a.weightKg
                 else None
             )
-            sex_numeric = 1.0 if a.gender.lower() in ("female", "f") else 0.0
-
-            # ── Feature vector — unchanged; model inputs are fixed ──────────
+            # ── Feature vector — model inputs are fixed ────────────────────
             # FBS / HbA1c are intentionally excluded: they are forbidden
             # predictors under the training leakage policy and the current
             # model was trained without them.  Verified lab values from
@@ -357,22 +360,12 @@ def evaluate_diabetes(context: HealthContext):
             feature_row = {
                 "age_years":    float(a.age),
                 "bmi":          float(bmi) if bmi is not None else float("nan"),
-                "waist_cm":     float("nan"),   # not captured in V2 assessment schema
-                "systolic_bp":  float(a.systolicBP) if a.systolicBP is not None else float("nan"),
-                "diastolic_bp": float(a.diastolicBP) if a.diastolicBP is not None else float("nan"),
-                "sex":          sex_numeric,
             }
 
             X_input = pd.DataFrame([feature_row])
 
-            # Fill NaN features with medians stored in the training metadata.
-            # waist_cm (not collected in V2) will always use the training median.
-            training_medians = _model_metadata.get("training_medians", {})
-            for col in X_input.columns:
-                if X_input[col].isna().any() and col in training_medians:
-                    X_input[col] = X_input[col].fillna(training_medians[col])
-
             prob = float(_model.predict_proba(X_input)[0][1])
+            risk_tier = "elevated" if prob >= _active_threshold_cutoff else "lower"
 
             used    = [k for k, v in feature_row.items() if v == v]   # not NaN
             missing = [k for k, v in feature_row.items() if v != v]   # NaN
@@ -386,6 +379,7 @@ def evaluate_diabetes(context: HealthContext):
                 "evidenceSupport":      "research-only",
                 "reasonCodes":          ["RESEARCH_ONLY_MODEL"],
                 "screeningProbability": prob,
+                "riskTier":             risk_tier,
                 "usedEvidence":         used,
                 "missingEvidence":      missing,
                 # Verified lab values found in the submission but not yet

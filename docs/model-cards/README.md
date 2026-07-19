@@ -1,66 +1,58 @@
 # Model Cards Directory
 
-This directory contains performance and governance cards for individual
-clinical prediction engines and machine learning classifiers within the V2
-platform.
+This directory contains performance and governance cards for clinical
+prediction engines and machine-learning classifiers in the V2 platform.
 
 ## 1. Card Template Fields
 
-Each model card must document:
-
-- **Intended Use**: Target population, permitted scope, explicitly
-  prohibited uses.
-- **Underlying Formulation**: Model architecture or equation (e.g.
-  Framingham, FINDRISC, Logistic Regression).
-- **Evaluation Details**: Validation strategy, metrics, demographic bounds.
-- **Lifecycle Status**: One of `RESEARCH_ONLY`, `VALIDATION_CANDIDATE`, or
-  an approved production state.
-- **Limitations**: Sample size, generalisability, missing features,
-  multicollinearity effects.
-
----
+Each model card must document intended and prohibited uses, model formulation,
+validation strategy and metrics, lifecycle status, and limitations including
+sample size and generalisability.
 
 ## 2. Active Models
 
-### Diabetes Screening — Logistic Regression (RESEARCH_ONLY)
+### Diabetes Screening — Pipeline Logistic Regression (`RESEARCH_ONLY`)
 
 | Field | Value |
 |---|---|
 | **Lifecycle** | `RESEARCH_ONLY` |
-| **Model type** | `LogisticRegression(C=1.0, solver=lbfgs)` |
+| **Model type** | `Pipeline(SimpleImputer(median) -> StandardScaler -> LogisticRegression)` |
 | **Training date** | 2026-07-19 |
-| **Training dataset** | ICMR-INDIAB sample (490 rows after target-missing drop) |
+| **Training dataset** | ICMR-INDIAB Himachal Pradesh sample (490 rows after target-missing drop) |
 | **Target variable** | `diabetes_composite` (v36) |
-| **Validation strategy** | 5-fold stratified cross-validation |
-| **ROC-AUC** | **0.7476 ± 0.0391** (mean ± std across folds) |
-| **Brier score** | **0.1040 ± 0.0031** (mean ± std across folds) |
+| **Features** | `age_years`, `bmi` |
+| **Validation strategy** | RepeatedStratifiedKFold (5 splits × 10 repeats; 50 folds) |
+| **ROC-AUC** | **0.747 ± 0.056** (mean ± std across folds) |
+| **PR-AUC** | **0.310 ± 0.081** (mean ± std across folds) |
+| **Active threshold** | ~75% sensitivity; mean cutoff **0.1206**; ~64% specificity |
 | **Artifact** | `health-intelligence/models/diabetes_model.joblib` |
 | **Metadata** | `health-intelligence/models/diabetes_model_metadata.json` |
 
-**Predictors used:**
+Exact metadata values are ROC-AUC 0.7469744115893227 ±
+0.05637783327610136, PR-AUC 0.3100783603360767 ± 0.08117204122819577,
+active mean cutoff 0.12062377210096864, and active mean specificity
+0.64174829001368.
 
-| Feature | Coefficient | Direction |
-|---|---|---|
-| `age_years` | +0.0440 | ↑ older → higher risk |
-| `bmi` | +0.0413 | ↑ higher BMI → higher risk |
-| `waist_cm` | +0.0297 | ↑ larger waist → higher risk |
-| `systolic_bp` | +0.0165 | ↑ higher systolic → higher risk |
-| `diastolic_bp` | −0.0179 | Negative when conditioned on systolic (multicollinearity — see data card) |
-| `sex` | −0.0434 | Female coded as 1; negative reflects cohort-specific prevalence |
-| *(intercept)* | −8.5899 | — |
+The model uses only `age_years` and `bmi`, reduced from the original
+six-feature set. Waist circumference, blood pressure, and sex were evaluated
+by `train_icmr_compare.py` and showed no PR-AUC improvement beyond
+fold-to-fold noise on this 490-row sample.
 
-All numbers are read from `models/diabetes_model_metadata.json`; see
-[`docs/data-cards/diabetes.md`](../data-cards/diabetes.md) for the full
-dataset card including leakage policy, limitations, and retraining
-instructions.
+The active operating point deliberately prioritises sensitivity for
+screening. At approximately 64% specificity, roughly 1 in 3 people without
+diabetes will still be flagged as `elevated`. Four alternative thresholds
+targeting 70%, 80%, 85%, and 90% sensitivity are stored in metadata and can be
+selected without retraining if the trade-off needs revisiting.
 
 **Key limitations:**
-- Not validated for clinical use.
-- Small sample (490 rows) — AUC std ± 0.039 across folds.
+
+- `RESEARCH_ONLY`; not validated for clinical use and not diagnostic.
+- Small sample of 490 rows.
 - No external validation cohort.
-- Regional Indian sample — national representativeness not established.
-- `waist_cm` is not collected in the V2 assessment schema; it is imputed
-  from the training cohort median (87.0 cm) at inference time.
+- The regional Himachal Pradesh sample is not nationally representative.
+
+See [`docs/data-cards/diabetes.md`](../data-cards/diabetes.md) for the full
+dataset card, leakage policy, and retraining instructions.
 
 ---
 
@@ -75,18 +67,14 @@ instructions.
 - **Type:** Evidence-based rules (V1 scoring)
 - **Lifecycle:** V1 production (not ML; governed by V1 freeze tests)
 
----
-
 ## 3. Governance Rules
 
-- No synthetic data may be used to train user-facing models.
-- Every model artifact must carry a `lifecycle_status` field in its
-  metadata JSON. Artifacts without a recognised status are rejected at
-  load time by `health-intelligence/app/main.py`.
-- Accepted lifecycle states: `RESEARCH_ONLY`, `VALIDATION_CANDIDATE`.
-- Raw datasets must remain outside Git (see `.gitignore` and
-  `health-intelligence/README.md`).
-- Missing or rejected models produce `status: model-unavailable` —
-  the service never crashes or fabricates a score.
-- Every training run must receive an explicit `--data-path` argument;
-  no hardcoded paths are permitted in `train_icmr.py`.
+- No synthetic data may train user-facing models.
+- Every model artifact must carry a recognised `lifecycle_status` in metadata.
+- Accepted research lifecycle states are `RESEARCH_ONLY` and
+  `VALIDATION_CANDIDATE`.
+- Raw datasets must remain outside Git.
+- Missing or rejected models return `status: model-unavailable`; the service
+  never fabricates a score.
+- Every training run requires an explicit `--data-path`; training paths must
+  not be hardcoded.
