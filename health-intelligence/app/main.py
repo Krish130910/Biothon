@@ -124,6 +124,161 @@ class HealthContext(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Lab-observation evidence detection
+# ---------------------------------------------------------------------------
+# Maps lower-cased, whitespace-stripped observation codes (and common aliases)
+# to a canonical name, a human-readable label, a module tag, and a note.
+#
+# module tags:
+#   "diabetes"        — relevant to the current RESEARCH_ONLY diabetes model
+#                       (not used as model inputs under the leakage policy,
+#                       but acknowledged for future lab-input model versions)
+#   "cardiovascular"  — reserved for the future hypertension / CVD module;
+#                       not used in any current calculation or scoring logic
+_LAB_CODE_MAPS: dict[str, dict] = {
+    # ── Fasting blood sugar / fasting plasma glucose ─────────────────────────
+    "fbs":               {"canonical": "fasting_blood_sugar", "label": "Fasting Blood Sugar",     "module": "diabetes"},
+    "fasting_glucose":   {"canonical": "fasting_blood_sugar", "label": "Fasting Blood Sugar",     "module": "diabetes"},
+    "fpg":               {"canonical": "fasting_blood_sugar", "label": "Fasting Blood Sugar",     "module": "diabetes"},
+    "fasting_blood_sugar": {"canonical": "fasting_blood_sugar", "label": "Fasting Blood Sugar",   "module": "diabetes"},
+    "glucose_fasting":   {"canonical": "fasting_blood_sugar", "label": "Fasting Blood Sugar",     "module": "diabetes"},
+    # ── HbA1c ────────────────────────────────────────────────────────────────
+    "hba1c":             {"canonical": "hba1c",               "label": "HbA1c",                  "module": "diabetes"},
+    "hb_a1c":            {"canonical": "hba1c",               "label": "HbA1c",                  "module": "diabetes"},
+    "hemoglobin_a1c":    {"canonical": "hba1c",               "label": "HbA1c",                  "module": "diabetes"},
+    "a1c":               {"canonical": "hba1c",               "label": "HbA1c",                  "module": "diabetes"},
+    "glycated_hb":       {"canonical": "hba1c",               "label": "HbA1c",                  "module": "diabetes"},
+    # ── Total cholesterol ────────────────────────────────────────────────────
+    "total_cholesterol":     {"canonical": "total_cholesterol", "label": "Total Cholesterol",     "module": "cardiovascular"},
+    "cholesterol":           {"canonical": "total_cholesterol", "label": "Total Cholesterol",     "module": "cardiovascular"},
+    "tc":                    {"canonical": "total_cholesterol", "label": "Total Cholesterol",     "module": "cardiovascular"},
+    "chol":                  {"canonical": "total_cholesterol", "label": "Total Cholesterol",     "module": "cardiovascular"},
+    # ── LDL cholesterol ──────────────────────────────────────────────────────
+    "ldl":                   {"canonical": "ldl_cholesterol",   "label": "LDL Cholesterol",       "module": "cardiovascular"},
+    "ldl_c":                 {"canonical": "ldl_cholesterol",   "label": "LDL Cholesterol",       "module": "cardiovascular"},
+    "ldl_cholesterol":       {"canonical": "ldl_cholesterol",   "label": "LDL Cholesterol",       "module": "cardiovascular"},
+    "low_density_lipoprotein": {"canonical": "ldl_cholesterol", "label": "LDL Cholesterol",      "module": "cardiovascular"},
+    # ── HDL cholesterol ──────────────────────────────────────────────────────
+    "hdl":                   {"canonical": "hdl_cholesterol",   "label": "HDL Cholesterol",       "module": "cardiovascular"},
+    "hdl_c":                 {"canonical": "hdl_cholesterol",   "label": "HDL Cholesterol",       "module": "cardiovascular"},
+    "hdl_cholesterol":       {"canonical": "hdl_cholesterol",   "label": "HDL Cholesterol",       "module": "cardiovascular"},
+    "high_density_lipoprotein": {"canonical": "hdl_cholesterol", "label": "HDL Cholesterol",     "module": "cardiovascular"},
+    # ── Triglycerides ────────────────────────────────────────────────────────
+    "triglycerides":          {"canonical": "triglycerides",    "label": "Triglycerides",         "module": "cardiovascular"},
+    "triglyceride":           {"canonical": "triglycerides",    "label": "Triglycerides",         "module": "cardiovascular"},
+    "tg":                    {"canonical": "triglycerides",    "label": "Triglycerides",         "module": "cardiovascular"},
+    "trigs":                 {"canonical": "triglycerides",    "label": "Triglycerides",         "module": "cardiovascular"},
+    "vldl_tg":               {"canonical": "triglycerides",    "label": "Triglycerides",         "module": "cardiovascular"},
+}
+
+
+# Per-module notes emitted in labEvidenceAvailable.  Keyed by the "module"
+# field in _LAB_CODE_MAPS so the note is always derived from the map, never
+# hardcoded at the call site.
+_LAB_MODULE_NOTES: dict[str, str] = {
+    "diabetes": (
+        "Detected but not used as a model input: the current RESEARCH_ONLY "
+        "model uses only anthropometric and BP predictors. This value will be "
+        "considered in a future model version that includes verified laboratory inputs."
+    ),
+    "cardiovascular": (
+        "Detected but not currently used by any active model. Reserved for "
+        "the future hypertension / cardiovascular module. Not used in any "
+        "current calculation or scoring logic."
+    ),
+}
+
+
+# Sanity ranges for diabetes-relevant lab values.
+# Keyed by canonical name (matches _LAB_CODE_MAPS values) so all aliases for
+# the same analyte share one definition.
+# Values outside these bounds are physiologically implausible for a human
+# report and most likely indicate a data-entry error, wrong unit, or a
+# corrupted payload.  Out-of-range entries are excluded from
+# labEvidenceAvailable and logged as warnings — never silently dropped,
+# never included unchecked.
+_LAB_SANITY_RANGES: dict[str, tuple[float, float]] = {
+    # FBS / fasting plasma glucose: 50–400 mg/dL
+    # Below 50 → severe hypoglycaemia (incompatible with a routine report);
+    # above 400 → critical hyperglycaemia / likely unit mismatch (mmol/L ×18).
+    "fasting_blood_sugar": (50.0, 400.0),
+    # HbA1c: 3–18 %
+    # Below 3 % → analytical artefact; above 18 % → extreme / incompatible
+    # with survival without intensive care.
+    "hba1c": (3.0, 18.0),
+    # No range defined for cardiovascular analytes yet — those values are
+    # accepted as-is until a cardiovascular module sets its own bounds.
+}
+
+
+def _scan_lab_observations(observations: list) -> list[dict]:
+    """
+    Scan a list of LabObservation objects and return only the verified entries
+    whose code matches a recognised lab test from _LAB_CODE_MAPS AND whose
+    value passes the physiological sanity range defined in _LAB_SANITY_RANGES.
+
+    Currently recognised analyte groups:
+      - Diabetes-relevant : FBS / fasting plasma glucose, HbA1c
+      - Cardiovascular (reserved): total cholesterol, LDL, HDL, triglycerides
+
+    Returns a list of dicts, one per matched + verified + in-range observation:
+      { "code": <original>, "canonical": <str>, "label": <str>,
+        "module": <str>, "value": <float>, "unit": <str>,
+        "observedAt": <str>, "isVerified": True, "verifiedBy": <str|None>,
+        "note": <str> }
+
+    Entries that fail the sanity check are:
+      - Excluded from the returned list (never included).
+      - Logged as a WARNING with the original code and out-of-range value.
+      - Never silently dropped (the warning is always emitted).
+
+    The returned list is used ONLY for reporting (labEvidenceAvailable).
+    It does NOT alter the feature vector passed to any model.
+    """
+    found: list[dict] = []
+    for obs in observations:
+        if not obs.isVerified:
+            continue
+        normalised = obs.code.lower().strip().replace("-", "_").replace(" ", "_")
+        match = _LAB_CODE_MAPS.get(normalised)
+        if not match:
+            continue
+
+        canonical = match["canonical"]
+        module    = match["module"]
+
+        # ── Sanity-range check ────────────────────────────────────────────────
+        # Only applied when a range is defined for this canonical name.
+        # Analytes without an entry in _LAB_SANITY_RANGES are accepted as-is.
+        bounds = _LAB_SANITY_RANGES.get(canonical)
+        if bounds is not None:
+            lo, hi = bounds
+            if not (lo <= obs.value <= hi):
+                log.warning(
+                    "Lab observation excluded — value out of sanity range: "
+                    "code=%r canonical=%r value=%s unit=%r expected=[%s, %s]. "
+                    "Check for data-entry error or unit mismatch.",
+                    obs.code, canonical, obs.value, obs.unit, lo, hi,
+                )
+                continue   # excluded, not silently dropped — warning was logged
+
+        found.append({
+            "code":       obs.code,
+            "canonical":  canonical,
+            "label":      match["label"],
+            "module":     module,
+            "value":      obs.value,
+            "unit":       obs.unit,
+            "observedAt": obs.observedAt,
+            "isVerified": True,
+            "verifiedBy": obs.verifiedBy,
+            "note":       _LAB_MODULE_NOTES.get(module, "Detected; usage not yet defined."),
+        })
+    return found
+
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -167,6 +322,20 @@ def evaluate_diabetes(context: HealthContext):
     # ------------------------------------------------------------------
     # Model-available branch — compute probability from loaded artifact
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Scan labObservations for verified diabetes-relevant lab values.
+    # This runs in BOTH branches (model present or absent) so the
+    # frontend always knows when a verified lab report was submitted.
+    # The model's feature vector is NOT affected by this scan.
+    # ------------------------------------------------------------------
+    lab_evidence = _scan_lab_observations(context.labObservations)
+    if lab_evidence:
+        log.info(
+            "Verified lab observations detected for user %s: %s",
+            context.userId,
+            [(e["canonical"], e["value"], e["unit"]) for e in lab_evidence],
+        )
+
     if _model is not None and _model_installed:
         try:
             import numpy as np
@@ -180,13 +349,18 @@ def evaluate_diabetes(context: HealthContext):
             )
             sex_numeric = 1.0 if a.gender.lower() in ("female", "f") else 0.0
 
+            # ── Feature vector — unchanged; model inputs are fixed ──────────
+            # FBS / HbA1c are intentionally excluded: they are forbidden
+            # predictors under the training leakage policy and the current
+            # model was trained without them.  Verified lab values from
+            # labObservations are surfaced in labEvidenceAvailable instead.
             feature_row = {
-                "age_years":   float(a.age),
-                "bmi":         float(bmi) if bmi is not None else float("nan"),
-                "waist_cm":    float("nan"),   # not captured in V2 assessment schema
-                "systolic_bp": float(a.systolicBP) if a.systolicBP is not None else float("nan"),
+                "age_years":    float(a.age),
+                "bmi":          float(bmi) if bmi is not None else float("nan"),
+                "waist_cm":     float("nan"),   # not captured in V2 assessment schema
+                "systolic_bp":  float(a.systolicBP) if a.systolicBP is not None else float("nan"),
                 "diastolic_bp": float(a.diastolicBP) if a.diastolicBP is not None else float("nan"),
-                "sex":         sex_numeric,
+                "sex":          sex_numeric,
             }
 
             X_input = pd.DataFrame([feature_row])
@@ -214,6 +388,10 @@ def evaluate_diabetes(context: HealthContext):
                 "screeningProbability": prob,
                 "usedEvidence":         used,
                 "missingEvidence":      missing,
+                # Verified lab values found in the submission but not yet
+                # used as model inputs (current model predates lab features).
+                # Frontend can use this to show "uploaded report detected".
+                "labEvidenceAvailable": lab_evidence,
                 "limitations": [
                     "RESEARCH_ONLY: not validated for clinical use",
                     "Small sample — estimates may have high variance",
@@ -229,7 +407,9 @@ def evaluate_diabetes(context: HealthContext):
             log.warning("Inference failed (%s) — returning model-unavailable.", exc)
 
     # ------------------------------------------------------------------
-    # Model-unavailable fallback — identical shape as before, always safe
+    # Model-unavailable fallback — identical shape as before, always safe.
+    # labEvidenceAvailable is still included so the frontend knows a
+    # verified lab report was received even when the model is absent.
     # ------------------------------------------------------------------
     return {
         "moduleId":      "diabetes-screening",
@@ -241,6 +421,7 @@ def evaluate_diabetes(context: HealthContext):
         "reasonCodes":   ["APPROVED_MODEL_NOT_INSTALLED"],
         "usedEvidence":  [],
         "missingEvidence": [],
+        "labEvidenceAvailable": lab_evidence,
         "limitations": [
             "NO_APPROVED_MODEL_ARTIFACT",
             "RESEARCH_PIPELINE_PENDING",
