@@ -259,6 +259,11 @@ def main():
     log.info("Fitting final model on full dataset …")
     model.fit(X, y)
 
+    # Read coefficients and intercept directly from the fitted model —
+    # never hardcoded, always in sync with the artifact being saved.
+    _coef_values = model.coef_[0].tolist()      # shape (n_features,)
+    _intercept   = float(model.intercept_[0])
+
     metadata = {
         "lifecycle_status": "RESEARCH_ONLY",
         "model_type": "LogisticRegression(C=1.0, solver=lbfgs)",
@@ -267,6 +272,8 @@ def main():
         "feature_list": PREDICTOR_COLUMNS,
         "target_column": TARGET_COLUMN,
         "training_medians": col_medians.to_dict(),
+        "coefficients": dict(zip(PREDICTOR_COLUMNS, _coef_values)),
+        "intercept": _intercept,
         "cross_validation": {
             "strategy": "StratifiedKFold(n_splits=5, shuffle=True, random_state=42)",
             "roc_auc_mean":    auc_mean,
