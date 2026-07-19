@@ -20,10 +20,15 @@ import {
   RefreshCw,
   Loader2,
   Activity,
+  ScanLine,
+  LifeBuoy,
+  ClipboardList,
 } from "lucide-react";
+import { GlassIcons } from "@/components/ui/glass-icons";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { startMeasure, endMeasure } from "@/lib/timing";
 import { EmptyState, LedgerTable, RiskLedgerTable } from "./_app.dashboard";
+import SplitText from "@/components/ui/split-text";
 
 export const Route = createLazyFileRoute("/_app/dashboard")({
   component: Dashboard,
@@ -458,6 +463,45 @@ function Dashboard() {
         ? CHART_AMBER
         : CHART_RED;
 
+  const quickActions = [
+    {
+      icon: <ClipboardList className="h-6 w-6 text-foreground" />,
+      color: "teal",
+      label: tr("startAssessment", currentLang) || "Assessment",
+      onClick: () => navigate({ to: "/assessment" }),
+    },
+    {
+      icon: <ScanLine className="h-6 w-6 text-foreground" />,
+      color: "purple",
+      label: tr("foodScanner", currentLang) || "Food Scanner",
+      onClick: () => navigate({ to: "/scanner" }),
+    },
+    {
+      icon: <Activity className="h-6 w-6 text-foreground" />,
+      color: "green",
+      label: tr("progress", currentLang) || "Track Progress",
+      onClick: () => navigate({ to: "/progress" }),
+    },
+    {
+      icon: <Stethoscope className="h-6 w-6 text-foreground" />,
+      color: "orange",
+      label: tr("expertReview", currentLang) || "Expert Review",
+      onClick: () => navigate({ to: "/expert-review" }),
+    },
+    {
+      icon: <Info className="h-6 w-6 text-foreground" />,
+      color: "blue",
+      label: tr("about", currentLang) || "About Portal",
+      onClick: () => navigate({ to: "/about" }),
+    },
+    {
+      icon: <LifeBuoy className="h-6 w-6 text-foreground" />,
+      color: "indigo",
+      label: tr("support", currentLang) || "Support Chat",
+      onClick: () => navigate({ to: "/contact" }),
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-[1440px] px-6 py-10 space-y-6">
       {/* Wake-up & Error Diagnostic Banners */}
@@ -488,9 +532,16 @@ function Dashboard() {
           <Badge variant="secondary" className="rounded-full">
             {tr("clinicalEngine", currentLang)}
           </Badge>
-          <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            {tr("riskDashboard", currentLang)}
-          </h1>
+          <SplitText
+            text={tr("riskDashboard", currentLang)}
+            className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl"
+            delay={35}
+            duration={0.6}
+            ease="power3.out"
+            splitType="chars"
+            tag="h1"
+            textAlign="left"
+          />
           <p className="mt-2 text-muted-foreground">
             Generated for a {profile.age}-year-old {profile.gender}, BMI {result.bmi.toFixed(1)}.
           </p>
@@ -513,6 +564,14 @@ function Dashboard() {
             <Download className="h-4 w-4" /> Download Report
           </Button>
         </div>
+      </div>
+
+      {/* Quick Navigation Hub using GlassIcons */}
+      <div className="border border-border bg-surface/50 backdrop-blur-md rounded-2xl p-6 shadow-card-soft">
+        <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
+          Quick Access Portal
+        </div>
+        <GlassIcons items={quickActions} className="py-2" />
       </div>
 
       {/* Dynamic Journey Section */}

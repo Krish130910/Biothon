@@ -30,6 +30,7 @@ import {
   Activity,
 } from "lucide-react";
 import { isConfigured, db, auth } from "@/lib/firebase";
+import SplitText from "@/components/ui/split-text";
 import {
   collection,
   query,
@@ -426,9 +427,16 @@ function ExpertReviewPage() {
           >
             {tr("clinicalReviewModule", currentLang)}
           </Badge>
-          <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            {tr("humanExpertReview", currentLang)}
-          </h1>
+          <SplitText
+            text={tr("humanExpertReview", currentLang)}
+            className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl"
+            delay={35}
+            duration={0.6}
+            ease="power3.out"
+            splitType="chars"
+            tag="h1"
+            textAlign="left"
+          />
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed max-w-2xl">
             Submit your personalized health risk summary and food scan trends to a human medical
             specialist for clinical feedback and life-plan suggestions.

@@ -18,6 +18,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { auth } from "@/lib/firebase";
+import SplitText from "@/components/ui/split-text";
 
 export const Route = createFileRoute("/_app/profile")({
   component: ProfilePage,
@@ -106,9 +107,16 @@ function ProfilePage() {
       {/* Header section with back button */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">
-            {tr("profile", currentLang)}
-          </h1>
+          <SplitText
+            text={tr("profile", currentLang)}
+            className="mt-2 font-display text-2xl font-bold tracking-tight"
+            delay={35}
+            duration={0.6}
+            ease="power3.out"
+            splitType="chars"
+            tag="h1"
+            textAlign="left"
+          />
         </div>
         <Button
           asChild

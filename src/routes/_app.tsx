@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
@@ -73,6 +75,8 @@ function AppLayout() {
             </div>
 
             <div className="ml-auto flex items-center gap-4">
+              <ThemeToggle />
+              <div className="h-4 w-px bg-border" />
               <LanguageSwitcher />
 
               <DropdownMenu>

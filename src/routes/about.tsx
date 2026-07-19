@@ -7,14 +7,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Brain,
   Heart,
-  Users,
   ShieldAlert,
   ArrowRight,
   ShieldCheck,
   Activity,
   BookOpen,
+  Github,
+  Linkedin,
 } from "lucide-react";
 import { useLanguage, tr } from "@/lib/i18n";
+import SplitText from "@/components/ui/split-text";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
@@ -28,69 +30,61 @@ function AboutPage() {
   }, [currentLang]);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col justify-between">
-      <div>
-        <SiteHeader />
+    <div className="min-h-screen bg-background font-sans antialiased text-foreground">
+      <SiteHeader />
 
-        {/* Hero Section */}
-        <section className="border-b border-border bg-surface-muted/30 relative overflow-hidden">
-          <div className="absolute inset-0 bg-grid opacity-35 pointer-events-none" />
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teal/40 to-transparent" />
-          <div className="mx-auto max-w-7xl px-6 py-24 relative text-center">
+      <div className="pt-12 pb-10">
+        {/* 1. Header Banner */}
+        <section className="mx-auto max-w-7xl px-6 pt-6 pb-6">
+          <div className="text-center max-w-4xl mx-auto">
             <Badge
               variant="secondary"
-              className="rounded-full bg-teal/10 text-teal border border-teal/20 hover:bg-teal/20"
+              className="rounded-full bg-teal/10 text-teal border border-teal/20"
             >
-              {tr("aboutPlatform", currentLang)}
+              {tr("projectOverview", currentLang)}
             </Badge>
-            <h1 className="mt-6 font-display text-5xl sm:text-6xl font-bold tracking-tight text-foreground">
-              HealthGuard
-            </h1>
-            <p className="mt-6 mx-auto max-w-3xl text-lg sm:text-xl leading-relaxed text-muted-foreground">
+            <SplitText
+              text="HealthGuard"
+              className="mt-5 font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground"
+              delay={35}
+              duration={0.6}
+              ease="power3.out"
+              splitType="chars"
+              tag="h1"
+              textAlign="center"
+            />
+            <p className="mt-5 mx-auto max-w-3xl text-base sm:text-lg leading-relaxed text-muted-foreground">
               {tr("aboutSub", currentLang)}
             </p>
           </div>
         </section>
 
-        {/* Developers Section */}
-        <section className="mx-auto max-w-4xl px-6 py-16">
-          <Card className="border-border/80 bg-surface shadow-card-soft overflow-hidden hover:border-teal/30 hover:shadow-md transition-all duration-300">
-            <CardContent className="p-8 flex flex-col md:flex-row items-center gap-6">
-              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal/10 text-teal">
-                <Users className="h-7 w-7" />
-              </div>
-              <div className="space-y-1 text-center md:text-left">
-                <div className="text-xs font-semibold uppercase tracking-wider text-teal font-mono">
-                  {tr("builtBy", currentLang)}
-                </div>
-                <h2 className="font-display text-2xl font-bold text-foreground">
-                  Krish Savaliya & Krishna Vyas
-                </h2>
-                <p className="text-sm text-muted-foreground">{tr("aboutDevsSub", currentLang)}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Focus Areas Section */}
-        <section className="border-t border-b border-border bg-surface-muted/10 py-20">
+        {/* 2. Core Domains & Focus Areas */}
+        <section className="border-b border-border bg-surface-muted/10 py-8">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="text-center max-w-3xl mx-auto mb-12">
+            <div className="text-center max-w-3xl mx-auto mb-10">
               <Badge
                 variant="secondary"
                 className="rounded-full bg-teal/10 text-teal border border-teal/20"
               >
                 {tr("coreDomains", currentLang)}
               </Badge>
-              <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground">
-                {tr("focusAreas", currentLang)}
-              </h2>
+              <SplitText
+                text={tr("focusAreas", currentLang)}
+                className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground"
+                delay={35}
+                duration={0.6}
+                ease="power3.out"
+                splitType="chars"
+                tag="h2"
+                textAlign="center"
+              />
               <p className="mt-2 text-sm text-muted-foreground">
                 {tr("coreDomainsSub", currentLang)}
               </p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-8 md:grid-cols-3">
               {[
                 {
                   icon: Brain,
@@ -110,16 +104,16 @@ function AboutPage() {
               ].map((f, idx) => (
                 <Card
                   key={idx}
-                  className="border-border/80 bg-surface shadow-card-soft hover:shadow-md hover:border-teal/30 hover:-translate-y-0.5 transition-all duration-300"
+                  className="border-border/80 bg-surface shadow-card-soft hover:shadow-elevated hover:border-teal/30 hover:-translate-y-0.5 transition-all duration-300"
                 >
-                  <CardContent className="p-6">
-                    <div className="grid h-10 w-10 place-items-center rounded-lg bg-teal/10 text-teal">
-                      <f.icon className="h-5.5 w-5.5" />
+                  <CardContent className="p-8">
+                    <div className="grid h-12 w-12 place-items-center rounded-xl bg-teal/10 text-teal">
+                      <f.icon className="h-6 w-6" />
                     </div>
-                    <h3 className="mt-4 font-display text-lg font-bold text-foreground">
+                    <h3 className="mt-5 font-display text-lg font-bold text-foreground">
                       {f.title}
                     </h3>
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{f.desc}</p>
+                    <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{f.desc}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -127,18 +121,25 @@ function AboutPage() {
           </div>
         </section>
 
-        {/* Educational Project Section */}
-        <section className="mx-auto max-w-7xl px-6 py-20">
-          <div className="text-center max-w-3xl mx-auto mb-12">
+        {/* 3. Framework & Ethics (Educational Project Information) */}
+        <section className="mx-auto max-w-7xl px-6 py-8">
+          <div className="text-center max-w-3xl mx-auto mb-10">
             <Badge
               variant="secondary"
               className="rounded-full bg-teal/10 text-teal border border-teal/20"
             >
               {tr("frameworkEthics", currentLang)}
             </Badge>
-            <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground">
-              {tr("eduProjectLinks", currentLang)}
-            </h2>
+            <SplitText
+              text={tr("eduProjectLinks", currentLang)}
+              className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground"
+              delay={35}
+              duration={0.6}
+              ease="power3.out"
+              splitType="chars"
+              tag="h2"
+              textAlign="center"
+            />
             <p className="mt-2 text-sm text-muted-foreground">
               {tr("frameworkEthicsSub", currentLang)}
             </p>
@@ -148,9 +149,9 @@ function AboutPage() {
             {/* Privacy Card */}
             <Link to="/privacy" className="group block">
               <Card className="border-border bg-surface shadow-card-soft group-hover:border-teal/50 group-hover:shadow-md transition-all duration-300 h-full">
-                <CardContent className="p-6 flex items-start gap-4">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-teal/10 text-teal">
-                    <ShieldCheck className="h-5 w-5" />
+                <CardContent className="p-8 flex items-start gap-4">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal/10 text-teal">
+                    <ShieldCheck className="h-5.5 w-5.5" />
                   </div>
                   <div className="space-y-1">
                     <h3 className="font-display text-lg font-bold text-foreground group-hover:text-teal transition-colors flex items-center gap-1.5">
@@ -168,9 +169,9 @@ function AboutPage() {
             {/* Clinical Sources Card */}
             <Link to="/clinical-sources" className="group block">
               <Card className="border-border bg-surface shadow-card-soft group-hover:border-teal/50 group-hover:shadow-md transition-all duration-300 h-full">
-                <CardContent className="p-6 flex items-start gap-4">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-teal/10 text-teal">
-                    <BookOpen className="h-5 w-5" />
+                <CardContent className="p-8 flex items-start gap-4">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal/10 text-teal">
+                    <BookOpen className="h-5.5 w-5.5" />
                   </div>
                   <div className="space-y-1">
                     <h3 className="font-display text-lg font-bold text-foreground group-hover:text-teal transition-colors flex items-center gap-1.5">
@@ -187,25 +188,104 @@ function AboutPage() {
           </div>
         </section>
 
-        {/* Disclaimer Section */}
-        <section className="mx-auto max-w-4xl px-6 pb-20">
-          <Card className="border border-danger/30 bg-danger/5 text-danger-foreground rounded-2xl overflow-hidden">
-            <CardContent className="p-6 flex items-start gap-4">
+        {/* 4. Strict Medical Disclaimer */}
+        <section className="mx-auto max-w-4xl px-6 pb-10">
+          <Card className="border-red-500/20 bg-red-500/5 dark:bg-red-500/10">
+            <CardContent className="p-6 sm:p-8 flex gap-4">
               <ShieldAlert className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
-              <div className="space-y-2">
-                <h3 className="font-display text-lg font-bold text-foreground">
+              <div>
+                <h3 className="font-display font-bold text-red-600 dark:text-red-400 text-[15px] tracking-wide">
                   {tr("medicalDisclaimer", currentLang)}
                 </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {tr("medicalDisclaimerDesc", currentLang)}
                 </p>
               </div>
             </CardContent>
           </Card>
         </section>
+
+        {/* 5. About the Developers */}
+        <section className="border-t border-border bg-surface-muted/10 py-10">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="text-center max-w-3xl mx-auto mb-12">
+              <Badge
+                variant="secondary"
+                className="rounded-full bg-teal/10 text-teal border border-teal/20"
+              >
+                {tr("devInfoTitle", currentLang) || "Meet the Developers"}
+              </Badge>
+              <SplitText
+                text="Meet the Developers"
+                className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground"
+                delay={35}
+                duration={0.6}
+                ease="power3.out"
+                splitType="chars"
+                tag="h2"
+                textAlign="center"
+              />
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-4xl mx-auto py-4">
+              {[
+                {
+                  name: "Krish Savaliya",
+                  github: "https://github.com/Krish130910",
+                  linkedin: "https://www.linkedin.com/in/krish-savaliya-5a139a31a/",
+                },
+                {
+                  name: "Krishna Vyas",
+                  github: "https://github.com/krishnaaaavyas",
+                  linkedin: "https://www.linkedin.com/in/krishna-vyas-7bba15319/",
+                },
+                {
+                  name: "Jiya Singh",
+                  github: "https://github.com/jiya2401",
+                  linkedin: "https://www.linkedin.com/in/jiya-singh24",
+                },
+              ].map((d, idx) => (
+                <Card
+                  key={idx}
+                  className="group border border-border/80 bg-surface rounded-2xl p-6 flex flex-col items-center justify-between text-center shadow-card-soft hover:shadow-elevated hover:border-teal/30 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden min-h-[140px]"
+                >
+                  {/* Subtle top decoration */}
+                  <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-teal/20 via-teal/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  <div className="my-auto">
+                    <h3 className="font-display font-bold text-foreground text-base tracking-wide group-hover:text-teal transition-colors">
+                      {d.name}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-4 w-full justify-center">
+                    <a
+                      href={d.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-secondary/80 text-secondary-foreground hover:bg-secondary border border-border transition-all duration-200"
+                    >
+                      <Github className="h-3.5 w-3.5" />
+                      GitHub
+                    </a>
+                    <a
+                      href={d.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-teal/10 text-teal hover:bg-teal/20 border border-teal/20 transition-all duration-200"
+                    >
+                      <Linkedin className="h-3.5 w-3.5" />
+                      LinkedIn
+                    </a>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
 
-      <SiteFooter />
+      <SiteFooter hideDisclaimer={true} />
     </div>
   );
 }

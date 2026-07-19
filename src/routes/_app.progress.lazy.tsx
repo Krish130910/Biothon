@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth } from "@/lib/firebase";
+import SplitText from "@/components/ui/split-text";
 import {
   ResponsiveContainer,
   CartesianGrid,
@@ -38,8 +39,8 @@ export const Route = createLazyFileRoute("/_app/progress")({
 });
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-const CHART_NAVY = "oklch(0.27 0.07 258)";
-const CHART_TEAL = "oklch(0.55 0.09 200)";
+const CHART_NAVY = "var(--chart-1)";
+const CHART_TEAL = "var(--chart-2)";
 
 function KpiCard({
   label,
@@ -233,9 +234,16 @@ function ProgressPage() {
         >
           {tr("progress", currentLang)}
         </Badge>
-        <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-          {tr("progressTracker", currentLang)}
-        </h1>
+        <SplitText
+          text={tr("progressTracker", currentLang)}
+          className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl"
+          delay={35}
+          duration={0.6}
+          ease="power3.out"
+          splitType="chars"
+          tag="h1"
+          textAlign="left"
+        />
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-relaxed">
           {tr("progressSubtitle", currentLang)}
         </p>

@@ -43,6 +43,7 @@ import {
 } from "@/lib/health-store";
 import { tr } from "@/lib/i18n";
 import { z } from "zod";
+import SplitText from "@/components/ui/split-text";
 
 export const Route = createLazyFileRoute("/_app/assessment")({
   component: AssessmentPage,
@@ -172,9 +173,16 @@ function AssessmentPage() {
         >
           {tr("assessment", lang)}
         </Badge>
-        <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-          {tr("assessmentTitle", lang)}
-        </h1>
+        <SplitText
+          text={tr("assessmentTitle", lang)}
+          className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl"
+          delay={35}
+          duration={0.6}
+          ease="power3.out"
+          splitType="chars"
+          tag="h1"
+          textAlign="left"
+        />
         <p className="mt-2 max-w-2xl text-muted-foreground">{tr("assessmentSubtitle", lang)}</p>
       </div>
 

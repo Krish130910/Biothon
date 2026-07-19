@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  HeartPulse,
+  ShieldCheck,
   ClipboardList,
   LayoutDashboard,
   Info,
@@ -64,8 +64,11 @@ export function AppSidebar() {
           to="/"
           className="flex items-center gap-3 group/brand w-full overflow-hidden group-data-[collapsible=icon]:justify-center"
         >
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-teal text-white transition-transform duration-300 group-hover/brand:scale-105">
-            <HeartPulse className="h-5 w-5" strokeWidth={2.4} />
+          <div className="relative h-9 w-9 shrink-0 select-none glass-logo">
+            <span className="glass-logo__back" />
+            <span className="glass-logo__front">
+              <ShieldCheck className="h-5 w-5 text-teal" strokeWidth={2.4} />
+            </span>
           </div>
           <div className="leading-tight min-w-0 transition-all duration-300 origin-left group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:pointer-events-none group-data-[state=collapsed]:scale-x-75 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:translate-x-4">
             <div className="font-display text-sm font-bold text-sidebar-foreground truncate tracking-wide">

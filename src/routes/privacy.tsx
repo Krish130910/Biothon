@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShieldCheck, EyeOff, Lock, Database, Trash2, Key } from "lucide-react";
 import { useLanguage, tr } from "@/lib/i18n";
+import SplitText from "@/components/ui/split-text";
 
 export const Route = createFileRoute("/privacy")({
   component: PrivacyPage,
@@ -26,16 +27,23 @@ function PrivacyPage() {
         {/* Hero Section */}
         <section className="border-b border-border bg-surface-muted/30 relative overflow-hidden">
           <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
-          <div className="mx-auto max-w-7xl px-6 py-20 relative">
+          <div className="mx-auto max-w-7xl px-6 py-10 relative">
             <Badge
               variant="secondary"
               className="rounded-full bg-teal/10 text-teal border border-teal/20 hover:bg-teal/20"
             >
               {tr("dataPrivacySecurity", currentLang)}
             </Badge>
-            <h1 className="mt-4 font-display text-4xl sm:text-5xl font-bold leading-tight tracking-tight text-foreground">
-              {tr("yourHealthDataBelongsToYou", currentLang)}
-            </h1>
+            <SplitText
+              text={tr("yourHealthDataBelongsToYou", currentLang)}
+              className="mt-4 font-display text-4xl sm:text-5xl font-bold leading-tight tracking-tight text-foreground"
+              delay={35}
+              duration={0.6}
+              ease="power3.out"
+              splitType="chars"
+              tag="h1"
+              textAlign="left"
+            />
             <p className="mt-5 max-w-2xl text-lg text-muted-foreground leading-relaxed">
               {tr("privacyHeroDesc", currentLang)}
             </p>
@@ -43,7 +51,7 @@ function PrivacyPage() {
         </section>
 
         {/* Core Principles */}
-        <section className="mx-auto max-w-7xl px-6 py-20">
+        <section className="mx-auto max-w-7xl px-6 py-10">
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {[
               {
@@ -96,7 +104,7 @@ function PrivacyPage() {
         </section>
 
         {/* Transparency Banner */}
-        <section className="border-t border-border bg-surface-muted/20 py-16">
+        <section className="border-t border-border bg-surface-muted/20 py-10">
           <div className="mx-auto max-w-4xl px-6 text-center">
             <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
               {tr("eduTransparencyTitle", currentLang)}

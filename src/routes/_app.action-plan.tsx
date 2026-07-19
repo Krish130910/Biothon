@@ -17,6 +17,7 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
+import SplitText from "@/components/ui/split-text";
 
 export const Route = createFileRoute("/_app/action-plan")({
   component: ActionPlanPage,
@@ -289,9 +290,16 @@ function ActionPlanPage() {
         >
           {tr("activePlan", currentLang)}
         </Badge>
-        <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-          {tr("actionPlan", currentLang)}
-        </h1>
+        <SplitText
+          text={tr("actionPlan", currentLang)}
+          className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl"
+          delay={35}
+          duration={0.6}
+          ease="power3.out"
+          splitType="chars"
+          tag="h1"
+          textAlign="left"
+        />
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-relaxed">
           {tr("actionPlanDesc", currentLang)}
         </p>

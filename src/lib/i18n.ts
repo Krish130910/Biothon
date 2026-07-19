@@ -9,7 +9,7 @@ export const languages: { code: Lang; label: string }[] = [
 type Dict = Record<string, { en: string; hi: string; gu: string }>;
 
 export const translations: Dict = {
-  appName: { en: "HealthGuard AI", hi: "हेल्थगार्ड एआई", gu: "હેલ્થગાર્ડ એઆઈ" },
+  appName: { en: "HealthGuard", hi: "हेल्थगार्ड", gu: "હેલ્થગાર્ડ" },
   diabetesV2Title: {
     en: "Diabetes Risk Profile (V2 Engine)",
     hi: "मधुमेह जोखिम प्रोफ़ाइल (V2 इंजन)",
@@ -101,9 +101,9 @@ export const translations: Dict = {
     gu: "સાઇન ઇન",
   },
   brandSubtitle: {
-    en: "AI Health Intelligence",
-    hi: "एआई स्वास्थ्य इंटेलिजेंस",
-    gu: "એઆઈ હેલ્થ ઇન્ટેલિજન્સ",
+    en: "Preventive Health Intelligence",
+    hi: "निवारक स्वास्थ्य इंटेलिजेंस",
+    gu: "નિવારક આરોગ્ય ઇન્ટેલિજન્સ",
   },
   patient: {
     en: "Patient",
@@ -280,7 +280,11 @@ export const translations: Dict = {
   overview: { en: "Screening Overview", hi: "स्क्रीनिंग सिंहावलोकन", gu: "સ્ક્રીનીંગ વિહંગાવલોકન" },
   riskLevel: { en: "Screening Tier", hi: "स्क्रीनिंग टियर", gu: "સ્ક્રીનીંગ ટાયર" },
   overallRisk: { en: "Overall Screening Index", hi: "समग्र स्क्रीनिंग इंडेक्स", gu: "સમગ્ર સ્ક્રીનીંગ ઇન્ડેક્સ" },
-  heroBadge: { en: "Gemini AI", hi: "जेमिनी एआई", gu: "જેમિની એઆઈ" },
+  heroBadge: {
+    en: "Evidence-Aware Health Intelligence",
+    hi: "साक्ष्य-जागरूक स्वास्थ्य इंटेलिजेंस",
+    gu: "પુરાવા-સભાન આરોગ્ય ઇન્ટેલિજન્સ",
+  },
   heroTitle: {
     en: "Understand your health risks in minutes.",
     hi: "मिनटों में अपने स्वास्थ्य जोखिमों को समझें।",
@@ -409,14 +413,14 @@ export const translations: Dict = {
     gu: "વેલનેસ ટૂલ",
   },
   homeTitle: {
-    en: "Identify your chronic health risks in 10 minutes.",
-    hi: "10 मिनट में अपने पुराने स्वास्थ्य जोखिमों की पहचान करें।",
-    gu: "10 મિનિટમાં તમારા ક્રોનિક હેલ્થ જોખમોને ઓળખો.",
+    en: "Your AI-Powered Preventive Health Companion",
+    hi: "आपका एआई-संचालित निवारक स्वास्थ्य साथी",
+    gu: "તમારું એઆઈ-સંચાલિત નિવારક આરોગ્ય સાથી",
   },
   homeSubtitle: {
-    en: "Understand your risk for Type 2 Diabetes, Hypertension, and Heart Disease using simple, everyday indicators. Get personalized, easy-to-follow lifestyle guidance to protect your health.",
-    hi: "सरल, रोज़मर्रा के संकेतकों का उपयोग करके टाइप 2 मधुमेह, उच्च रक्तचाप और हृदय रोग के अपने जोखिम को समझें। अपने स्वास्थ्य की रक्षा के लिए व्यक्तिगत, पालन करने में आसान जीवनशैली मार्गदर्शन प्राप्त करें।",
-    gu: "સરળ, રોજિંદા સૂચકાંકોનો ઉપયોગ કરીને ટાઇપ 2 ડાયાબિટીસ, હાયપરટેન્શન અને હૃદય રોગના તમારા જોખમને સમજો. તમારા સ્વાસ્થ્યને સુરક્ષિત રાખવા માટે વ્યક્તિગત, સરળ-થી-અનુસરણ જીવનશૈલી માર્ગદર્શન મેળવો.",
+    en: "Assess your metabolic and cardiovascular indicators using structured lifestyle inputs and standard laboratory markers. Get transparent, guideline-aligned insights and AI-generated wellness guidelines.",
+    hi: "संरचित जीवन शैली इनपुट और मानक प्रयोगशाला संकेतकों का उपयोग करके अपने चयापचय और हृदय संबंधी संकेतकों का आकलन करें। पारदर्शी, दिशानिर्देश-संरेखित अंतर्दृष्टि और एआई-जनरेटेड कल्याण दिशानिर्देश प्राप्त करें।",
+    gu: "માળખાગત જીવનશૈલી ઇનપુટ્સ અને પ્રમાણભૂત લેબોરેટરી માર્કર્સનો ઉપયોગ કરીને તમારા મેટાબોલિક અને કાર્ડિયોવાસ્ક્યુલર સૂચકાંકોનું મૂલ્યાંકન કરો. પારદર્શક, માર્ગદર્શિકા-સંરેખિત આંતરદૃષ્ટિ અને એઆઈ-જનરેટેડ સુખાકારી માર્ગદર્શિકા મેળવો.",
   },
   diabetesDesc: {
     en: "Glucose baselines, family history, and physical activity indicators.",
@@ -464,9 +468,9 @@ export const translations: Dict = {
     gu: "તમારા હેલ્થ આસિસ્ટન્ટ",
   },
   healthAssistantDesc: {
-    en: "HealthGuard provides an independent, on-device assessment portal that helps you map metabolic and cardiovascular risk factors before symptoms manifest. Our platform offers clear, clinical-guideline-aligned guidance and generative diet and wellness plans tailored to your regional language.",
-    hi: "हेल्थगार्ड एक स्वतंत्र, ऑन-डिवाइस मूल्यांकन पोर्टल प्रदान करता है जो लक्षण प्रकट होने से पहले चयापचय और हृदय संबंधी जोखिम कारकों को मैप करने में आपकी सहायता करता है। हमारा मंच स्पष्ट, नैदानिक-दिशानिर्देश-संरेखित मार्गदर्शन और आपकी क्षेत्रीय भाषा के अनुरूप जेनेरेटिव आहार और कल्याण योजनाएं प्रदान करता है।",
-    gu: "હેલ્થગાર્ડ એક સ્વતંત્ર, ઓન-ડિવાઈસ મૂલ્યાંકન પોર્ટલ પ્રદાન કરે છે જે લક્ષણો દેખાય તે પહેલાં મેટાબોલિક અને રક્તવાહિની જોખમ પરિબળોને મેપ કરવામાં તમારી મદદ કરે છે. અમારું પ્લેટફોર્મ તમારી પ્રાદેશિક ભાષાને અનુરૂપ સ્પષ્ટ, ક્લિનિકલ-માર્ગદર્શિકા-સંરેખિત માર્ગદર્શન અને જનરેટિવ આહાર અને સુખાકારી યોજનાઓ પ્રદાન કરે છે.",
+    en: "HealthGuard provides an evidence-aware, on-device screening portal that evaluates metabolic and cardiovascular lifestyle markers before clinical symptoms manifest. Our platform utilizes laboratory-supported parameters and clinical rule engines to deliver educational guidance and AI-generated lifestyle explanations in regional languages.",
+    hi: "हेल्थगार्ड एक साक्ष्य-जागरूक, ऑन-डिवाइस स्क्रीनिंग पोर्टल प्रदान करता है जो नैदानिक लक्षण प्रकट होने से पहले चयापचय और हृदय संबंधी जीवनशैली संकेतकों का मूल्यांकन करता है। हमारा मंच क्षेत्रीय भाषाओं में शैक्षिक मार्गदर्शन और एआई-जनरेटेड जीवनशैली स्पष्टीकरण प्रदान करने के लिए प्रयोगशाला-समर्थित मापदंडों और नैदानिक नियम इंजनों का उपयोग करता है।",
+    gu: "હેલ્થગાર્ડ એક પુરાવા-સભાન, ઓન-ડિવાઈસ સ્ક્રીનીંગ પોર્ટલ પ્રદાન કરે છે જે ક્લિનિકલ લક્ષણો દેખાય તે પહેલાં મેટાબોલિક અને રક્તવાહિની જીવનશૈલીના માર્કર્સનું મૂલ્યાંકન કરે છે. અમારું પ્લેટફોર્મ પ્રાદેશિક ભાષાઓમાં શૈક્ષણિક માર્ગદર્શન અને એઆઈ-જનરેટેડ જીવનશૈલીની સ્પષ્ટતાઓ પ્રદાન કરવા માટે લેબોરેટરી-સમર્થિત પરિમાણો અને ક્લિનિકલ નિયમ એન્જિનનો ઉપયોગ કરે છે.",
   },
   howItHelps: {
     en: "How It Helps You",
@@ -482,6 +486,76 @@ export const translations: Dict = {
     en: "HealthGuard is designed to be simple, plain-language, and easy to use.",
     hi: "हेल्थगार्ड को सरल, स्पष्ट भाषा और उपयोग में आसान बनाने के लिए डिज़ाइन किया गया है।",
     gu: "હેલ્થગાર્ડને સરળ, સાદી ભાષા અને ઉપયોગમાં સરળ બનાવવા માટે ડિઝાઇન કરવામાં આવ્યું છે.",
+  },
+  featureSectionTitle: {
+    en: "Evidence-Aware Screening Framework",
+    hi: "साक्ष्य-जागरूक स्क्रीनिंग ढांचा",
+    gu: "પુરાવા-સભાન સ્ક્રીનીંગ માળખું",
+  },
+  featureSectionDesc: {
+    en: "Evolving preventive health through structured screening, transparent rule engines, and clinical guidelines.",
+    hi: "संरचित स्क्रीनिंग, पारदर्शी नियम इंजन और नैदानिक दिशानिर्देशों के माध्यम से निवारक स्वास्थ्य का विकास।",
+    gu: "માળખાગત સ્ક્રીનીંગ, પારદર્શક નિયમ એન્જિન અને ક્લિનિકલ માર્ગદર્શિકા દ્વારા નિવારક આરોગ્યનો વિકાસ.",
+  },
+  featEvidenceTitle: {
+    en: "Evidence Collection",
+    hi: "साक्ष्य संग्रह",
+    gu: "પુરાવા સંગ્રહ",
+  },
+  featEvidenceDesc: {
+    en: "Gathers comprehensive patient demographics, family history, and lifestyle metrics through secure, structured questionnaires.",
+    hi: "सुरक्षित, संरचित प्रश्नावली के माध्यम से व्यापक रोगी जनसांख्यिकी, पारिवारिक इतिहास और जीवनशैली मेट्रिक्स एकत्र करता है।",
+    gu: "સુરક્ષિત, માળખાગત પ્રશ્નાવલી દ્વારા દર્દીની વસ્તીવિષયક, કૌટુંબિક ઇતિહાસ અને જીવનશૈલીના મેટ્રિક્સ એકત્રિત કરે છે.",
+  },
+  featLabTitle: {
+    en: "Laboratory Support",
+    hi: "प्रयोगशाला समर्थन",
+    gu: "લેબોરેટરી સપોર્ટ",
+  },
+  featLabDesc: {
+    en: "Incorporates standard laboratory biomarker inputs—such as glucose, HbA1c, and lipid panels—to refine and calibrate the screening index.",
+    hi: "स्क्रीनिंग इंडेक्स को परिष्कृत और कैलिब्रेट करने के लिए ग्लूकोज, HbA1c और लिपिड पैनल जैसे मानक प्रयोगशाला बायोमार्कर इनपुट को शामिल करता है।",
+    gu: "સ્ક્રિનિંગ ઇન્ડેક્સને શુદ્ધ અને માપાંકિત કરવા માટે ગ્લુકોઝ, HbA1c અને લિપિડ પેનલ્સ જેવા પ્રમાણભૂત પ્રયોગશાળા બાયોમાર્કર ઇનપુટ્સનો સમાવેશ કરે છે.",
+  },
+  featResearchTitle: {
+    en: "Research Screening",
+    hi: "अनुसंधान स्क्रीनिंग",
+    gu: "સંશોધન સ્ક્રિનિંગ",
+  },
+  featResearchDesc: {
+    en: "Evaluates individual profile indicators against peer-reviewed epidemiological datasets and international prevention frameworks.",
+    hi: "सहकर्मी-समीक्षित महामारी विज्ञान डेटासेट और अंतर्राष्ट्रीय रोकथाम ढांचे के खिलाफ व्यक्तिगत प्रोफ़ाइल संकेतकों का मूल्यांकन करता है।",
+    gu: "પીઅર-સમીક્ષા કરેલ રોગચાળાના ડેટાસેટ્સ અને આંતરરાષ્ટ્રીય નિવારણ માળખા સામે વ્યક્તિગત પ્રોફાઇલ સૂચકાંકોનું મૂલ્યાંકન કરે છે.",
+  },
+  featRuleEngineTitle: {
+    en: "Clinical Rule Engine",
+    hi: "नैदानिक ​​नियम इंजन",
+    gu: "ક્લિનિકલ નિયમ એન્જિન",
+  },
+  featRuleEngineDesc: {
+    en: "Processes health indicators through a transparent, rule-based clinical logic engine aligned with established medical standards.",
+    hi: "स्थापित चिकित्सा मानकों के साथ संरेखित एक पारदर्शी, नियम-आधारित नैदानिक तर्क इंजन के माध्यम से स्वास्थ्य संकेतकों को संसाधित करता है।",
+    gu: "સ્થાપિત તબીબી ધોરણો સાથે સંરેખિત પારદર્શક, નિયમ-આધારિત ક્લિનિકલ લોજિક એન્જિન દ્વારા આરોગ્ય સૂચકાંકો પર પ્રક્રિયા કરે છે.",
+  },
+  featIndiaContextTitle: {
+    en: "India Healthcare Context",
+    hi: "भारत स्वास्थ्य सेवा संदर्भ",
+    gu: "ભારત હેલ્થકેર સંદર્ભ",
+  },
+  featIndiaContextDesc: {
+    en: "Tailored to Indian population demographics, regional dietary patterns, and localized health risk factors.",
+    hi: "भारतीय जनसंख्या जनसांख्यिकी, क्षेत्रीय आहार पैटर्न और स्थानीय स्वास्थ्य जोखिम कारकों के अनुरूप।",
+    gu: "ભારતીય વસ્તીની વસ્તીવિષયક, પ્રાદેશિક આહાર પેટર્ન અને સ્થાનિક આરોગ્ય જોખમી પરિબળોને અનુરૂપ.",
+  },
+  featAIExplanationTitle: {
+    en: "AI Explanation",
+    hi: "एआई स्पष्टीकरण",
+    gu: "એઆઈ સમજૂતી",
+  },
+  featAIExplanationDesc: {
+    en: "Generates clear, transparent educational explanations and personalized wellness guides based on analyzed evidence, not black-box predictions.",
+    hi: "विश्लेषण किए गए साक्ष्यों के आधार पर स्पष्ट, पारदर्शी शैक्षिक स्पष्टीकरण और व्यक्तिगत कल्याण मार्गदर्शिकाएँ उत्पन्न करता है, न कि ब्लैक-बॉक्स भविष्यवाणियाँ।",
+    gu: "પૃથ્થકરણ કરેલા પુરાવાના આધારે સ્પષ્ટ, પારદર્શક શૈક્ષણિક સમજૂતીઓ અને વ્યક્તિગત સુખાકારી માર્ગદર્શિકાઓ જનરેટ કરે છે, બ્લેક-બોક્સ અનુમાનો નહીં.",
   },
   step1Title: {
     en: "Complete a health assessment",
@@ -715,9 +789,9 @@ export const translations: Dict = {
     gu: "જોખમ स्कोरिंग कितना सटीक है?",
   },
   faq2A: {
-    en: "The scoring uses guideline-aligned risk factors (BMI, age, smoking, exercise, family history). Risk percentages are generated by a clinical AI model and are intended as directional indicators — not clinical diagnoses.",
-    hi: "स्कोरिंग दिशानिर्देश-संरेखित जोखिम कारकों (बीएमआई, आयु, धूम्रपान, व्यायाम, पारिवारिक इतिहास) का उपयोग करता है। जोखिम प्रतिशत एक नैदानिक ​​एआई मॉडल द्वारा उत्पन्न होते हैं और दिशात्मक संकेतक के रूप में अभिप्रेत हैं - नैदानिक ​​निदान नहीं।",
-    gu: "સ્કોરિંગ માર્ગદર્શિકા-સંરેખિત જોખમ પરિબળો (BMI, ઉંમર, ધૂમ્રપાન, કસરત, કૌટુંબિક ઇતિહાસ) નો ઉપયોગ કરે છે. જોખમની ટકાવારી ક્લિનિકલ એઆઈ મોડેલ દ્વારા જનરેટ કરવામાં આવે છે અને તેનો હેતુ માત્ર માર્ગદર્શક સૂચકાંકો તરીકે છે - ક્લિનિકલ નિદાન નથી.",
+    en: "The scoring processes guideline-aligned risk factors and laboratory biomarkers (like blood glucose or HbA1c) through a clinical rule engine. The resulting risk screening indices serve as directional preventive indicators, with AI generating clear explanations of the analysis rather than direct clinical diagnoses.",
+    hi: "स्कोरिंग नैदानिक नियम इंजन के माध्यम से दिशानिर्देश-संरेखित जोखिम कारकों और प्रयोगशाला बायोमार्कर (जैसे रक्त शर्करा या HbA1c) को संसाधित करती है। परिणामी जोखिम स्क्रीनिंग सूचकांक दिशात्मक निवारक संकेतक के रूप में कार्य करते हैं, जिसमें एआई सीधे नैदानिक निदान के बजाय विश्लेषण के स्पष्ट स्पष्टीकरण उत्पन्न करता है।",
+    gu: "સ્કોરિંગ ક્લિનિકલ નિયમ એન્જિન દ્વારા માર્ગદર્શિકા-સંરેખિત જોખમ પરિબળો અને પ્રયોગશાળા બાયોમાર્કર્સ (જેમ કે બ્લડ ગ્લુકોઝ અથવા HbA1c) પર પ્રક્રિયા કરે છે. પરિણામી જોખમ સ્ક્રીનીંગ સૂચકાંકો માત્ર માર્ગદર્શક નિવારક સૂચકાંકો તરીકે સેવા આપે છે, જેમાં એઆઈ સીધા ક્લિનિકલ નિદાનને બદલે પૃથ્થકરણની સ્પષ્ટ સમજૂતીઓ જનરેટ કરે છે.",
   },
   faq3Q: {
     en: "Where is my data stored?",
@@ -778,9 +852,9 @@ export const translations: Dict = {
   myProfile: { en: "My Profile", hi: "मेरी प्रोफ़ाइल", gu: "મારી પ્રોફાઇલ" },
   aboutPlatform: { en: "About the Platform", hi: "मंच के बारे में", gu: "પ્લેટફોર્મ વિશે" },
   aboutSub: {
-    en: "AI-powered preventive health insights for Type 2 Diabetes, Hypertension, and Heart Disease.",
-    hi: "टाइप 2 मधुमेह, उच्च रक्तचाप और हृदय रोग के लिए एआई-संचालित निवारक स्वास्थ्य अंतर्दृष्टि।",
-    gu: "ટાઇપ 2 ડાયાબિટીસ, હાયપરટેન્શન અને હૃદય રોગ માટે એઆઈ-સંચાલિત નિવારક આરોગ્ય માહિતી.",
+    en: "Evidence-aware preventive health intelligence and screening for Type 2 Diabetes, Hypertension, and Heart Disease.",
+    hi: "टाइप 2 मधुमेह, उच्च रक्तचाप और हृदय रोग के लिए साक्ष्य-जागरूक निवारक स्वास्थ्य इंटेलिजेंस और स्क्रीनिंग।",
+    gu: "ટાઇપ 2 ડાયાબિટીસ, હાયપરટેન્શન અને હૃદય રોગ માટે પુરાવા-સભાન નિવારક આરોગ્ય ઇન્ટેલિજન્સ અને સ્ક્રિનિંગ.",
   },
   builtBy: { en: "Built By", hi: "इनके द्वारा निर्मित", gu: "આમના દ્વારા નિર્મિત" },
   aboutDevsSub: {
@@ -3303,15 +3377,15 @@ export const translations: Dict = {
     gu: "પ્રારંભિક મૂલ્યાંકન શરૂ કરો",
   },
   footerDesc: {
-    en: "An AI-powered preventive health intelligence portal built to evaluate metabolic and cardiovascular risk factors. It maps basic lifestyle indicators against evidence-based reference guidelines to generate personalized wellness recommendations.",
-    hi: "एक एआई-संचालित निवारक स्वास्थ्य खुफिया पोर्टल जो चयापचय और हृदय संबंधी जोखिम कारकों का मूल्यांकन करने के लिए बनाया गया है। यह व्यक्तिगत कल्याण सिफारिशें उत्पन्न करने के लिए साक्ष्य-आधारित संदर्भ दिशानिर्देशों के खिलाफ बुनियादी जीवन शैली संकेतकों को मैप करता है।",
-    gu: "એક એઆઈ-સંચાલિત નિવારક આરોગ્ય માહિતી પોર્ટલ જે મેટાબોલિક અને કાર્ડિયોવાસ્ક્યુલર જોખમ પરિબળોનું મૂલ્યાંકન કરવા માટે બનાવવામાં આવ્યું છે. તે વ્યક્તિગત સુખાકારી ભલામણો જનરેટ કરવા માટે પુરાવા-આધારિત સંદર્ભ માર્ગદર્શિકા સામે મૂળભૂત જીવનશૈલી સૂચકાંકોને મેપ કરે છે.",
+    en: "An evidence-aware preventive health intelligence portal built to screen metabolic and cardiovascular indicators. It maps lifestyle and laboratory markers against clinical reference guidelines, providing transparent health insights and AI-generated explanations.",
+    hi: "एक साक्ष्य-जागरूक निवारक स्वास्थ्य इंटेलिजेंस पोर्टल जो चयापचय और हृदय संबंधी संकेतकों की जांच के लिए बनाया गया है। यह जीवनशैली और प्रयोगशाला संकेतकों को नैदानिक संदर्भ दिशानिर्देशों के साथ मैप करता है, पारदर्शी स्वास्थ्य अंतर्दृष्टि और एआई-जनरेटेड स्पष्टीकरण प्रदान करता है।",
+    gu: "એક પુરાવા-સભાન નિવારક આરોગ્ય ઇન્ટેલિજન્સ પોર્ટલ જે મેટાબોલિક અને કાર્ડિયોવાસ્ક્યુલર સૂચકાંકોની તપાસ માટે બનાવવામાં આવ્યું છે. તે જીવનશૈલી અને પ્રયોગશાળાના સંકેતોને ક્લિનિકલ સંદર્ભ માર્ગદર્શિકા સાથે નકશા કરે છે, પારદર્શક આરોગ્ય આંતરદૃષ્ટિ અને એઆઈ-જનરેટેડ સ્પષ્ટતાઓ પ્રદાન કરે છે.",
   },
   developers: { en: "Developers", hi: "डेवलपर्स", gu: "ડેવલપર્સ" },
   footerDisclaimer: {
-    en: "Disclaimer: This project provides health risk awareness and preventive guidance. It is not a medical diagnosis tool.",
-    hi: "अस्वीकरण: यह परियोजना स्वास्थ्य जोखिम जागरूकता और निवारक मार्गदर्शन प्रदान करती है। यह कोई चिकित्सा निदान उपकरण नहीं है।",
-    gu: "ડિસ્ક્લેમર: આ પ્રોજેક્ટ આરોગ્ય જોખમ જાગૃતિ અને નિવારક માર્ગદર્શન પૂરું પાડે છે. તે તબીબી નિદાન સાધન નથી.",
+    en: "Disclaimer: HealthGuard provides educational health screening indices based on self-reported lifestyle and demographic parameters. It does not diagnose, treat, cure, or prevent any clinical condition. Projections are mathematical trends and do not guarantee biological outcomes. Users must consult qualified healthcare professionals for medical advice and clinical testing.",
+    hi: "अस्वीकरण: हेल्थगार्ड स्व-रिपोर्ट की गई जीवनशैली और जनसांख्यिकीय मापदंडों के आधार पर शैक्षिक स्वास्थ्य स्क्रीनिंग सूचकांक प्रदान करता है। यह किसी भी नैदानिक स्थिति का निदान, उपचार, इलाज या रोकथाम नहीं करता है। अनुमान गणितीय प्रवृत्तियां हैं और जैविक परिणामों की गारंटी नहीं देते हैं। उपयोगकर्ताओं को चिकित्सा सलाह और नैदानिक परीक्षण के लिए योग्य स्वास्थ्य पेशेवरों से परामर्श करना चाहिए।",
+    gu: "ડિસ્ક્લેમર: હેલ્થગાર્ડ સ્વ-અહેવાલ જીવનશૈલી અને વસ્તીવિષયક પરિમાણોના આધારે શૈક્ષણિક આરોગ્ય સ્ક્રિનિંગ સૂચકાંકો પ્રદાન કરે છે. તે કોઈપણ ક્લિનિકલ સ્થિતિનું નિદાન, સારવાર, ઇલાજ અથવા અટકાવતું નથી. અંદાજો ગાણિતિક વલણો છે અને જૈવિક પરિણામોની ખાતરી આપતા નથી. વપરાશકર્તાઓએ તબીબી સલાહ અને ક્લિનિકલ પરીક્ષણ માટે લાયક આરોગ્યસંભાળ વ્યાવસાયિકોની સલાહ લેવી આવશ્યક છે.",
   },
   privacyTitle: { en: "Privacy Policy", hi: "गोपनीयता नीति", gu: "પ્રાઇવસી પોલિસી" },
   dataPrivacySecurity: {
@@ -3594,6 +3668,11 @@ export const translations: Dict = {
     en: "Backend & algorithm designer responsible for Firebase integration, clinical guidelines logic modeling, and Gemini processing.",
     hi: "फायरबेस एकीकरण, नैदानिक दिशानिर्देश तर्क मॉडलिंग और जेमिनी प्रसंस्करण के लिए जिम्मेदार बैकएंड और एल्गोरिदम डिजाइनर।",
     gu: "ફાયરબેઝ ઇન્ટિગ્રેશન, ક્લિનિકલ માર્ગદર્શિકા તર્ક મોડેલિંગ અને જેમિની પ્રોસેસિંગ માટે જવાબદાર બેકએન્ડ અને અલ્ગોરિધમ ડિઝાઇનર.",
+  },
+  jiyaDesc: {
+    en: "Fullstack UI designer & testing engineer responsible for interactive charting components and automated verification scripts.",
+    hi: "फुलस्टैक यूआई डिजाइनर और परीक्षण इंजीनियर जो इंटरैक्टिव चार्टिंग घटकों और स्वचालित सत्यापन स्क्रिप्ट के लिए जिम्मेदार हैं।",
+    gu: "ઇન્ટરેક્ટિવ ચાર્ટિંગ ઘટકો અને સ્વયંસંચાલિત ચકાસણી સ્ક્રિપ્ટો માટે જવાબદાર ફુલસ્ટેક UI ડિઝાઇનર અને ટેસ્ટિંગ એન્જિનિયર.",
   },
   faqContactTitle: {
     en: "Frequently Asked Questions",

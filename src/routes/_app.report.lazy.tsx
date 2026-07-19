@@ -4,7 +4,7 @@ import { useHealthResult, useProfile, useHistory } from "@/lib/health-store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, HeartPulse } from "lucide-react";
+import { Download, ClipboardList, Activity } from "lucide-react";
 import { EmptyState, LedgerTable, RiskLedgerTable } from "./_app.dashboard";
 import { useLanguage, tr, translations } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -62,32 +62,45 @@ function ReportPage() {
       let y = margin;
 
       // Header band
-      doc.setFillColor(11, 30, 63);
+      doc.setFillColor(15, 23, 42); // slate-900 (modern dark navy)
       doc.rect(0, 0, pageW, 88, "F");
+
+      // ECG Heartbeat logo graphic
+      doc.setLineWidth(2.5);
+      doc.setDrawColor(61, 178, 178); // teal
+      doc.line(margin, 48, margin + 6, 48);
+      doc.line(margin + 6, 48, margin + 9, 34);
+      doc.line(margin + 9, 34, margin + 13, 62);
+      doc.line(margin + 13, 62, margin + 17, 40);
+      doc.line(margin + 17, 40, margin + 20, 48);
+      doc.line(margin + 20, 48, margin + 26, 48);
+
       doc.setTextColor(255);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(20);
-      doc.text(tr("clinicalReportTitle", currentLang), margin, 40);
+      doc.setFontSize(18);
+      doc.text(tr("clinicalReportTitle", currentLang), margin + 34, 42);
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.text(tr("aiAssistedAssessment", currentLang), margin, 58);
+      doc.setFontSize(9.5);
+      doc.setTextColor(148, 163, 184); // slate-400
+      doc.text(tr("aiAssistedAssessment", currentLang), margin + 34, 58);
       doc.setFontSize(9);
       const formattedDate = new Date().toLocaleString(
         currentLang === "en" ? "en-US" : currentLang === "hi" ? "hi-IN" : "gu-IN",
       );
       doc.text(formattedDate, pageW - margin, 58, { align: "right" });
       y = 120;
-      doc.setTextColor(20);
+      doc.setTextColor(40);
 
       const ensureSpace = (heightNeeded: number) => {
-        if (y + heightNeeded > 770) {
+        if (y + heightNeeded > 750) {
           doc.addPage();
-          y = margin + 20;
+          y = margin + 25;
           doc.setFont("helvetica", "normal");
           doc.setFontSize(8);
-          doc.setTextColor(140);
+          doc.setTextColor(148, 163, 184); // slate-400
           doc.text(tr("clinicalReportTitleCont", currentLang), margin, margin - 15);
-          doc.setDrawColor(230);
+          doc.setDrawColor(226, 232, 240); // slate-200
+          doc.setLineWidth(1);
           doc.line(margin, margin - 10, pageW - margin, margin - 10);
         }
       };
@@ -96,29 +109,75 @@ function ReportPage() {
       const title = (t: string) => {
         ensureSpace(45);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.setTextColor(11, 30, 63);
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42); // slate-900
         doc.text(t.toUpperCase(), margin, y);
         y += 6;
-        doc.setDrawColor(220);
+        doc.setDrawColor(61, 178, 178); // teal accent line
+        doc.setLineWidth(1.5);
         doc.line(margin, y, pageW - margin, y);
-        y += 14;
+        y += 16;
         doc.setTextColor(40);
       };
 
-      const para = (t: string, size = 10) => {
+      const para = (t: string, size = 9.5, xOffset = 0) => {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(size);
-        const lines = doc.splitTextToSize(t, cw);
+        const lines = doc.splitTextToSize(t, cw - xOffset);
         lines.forEach((l: string) => {
           ensureSpace(size + 6);
-          doc.text(l, margin, y);
+          doc.text(l, margin + xOffset, y);
           y += size + 4;
         });
       };
 
-      // Profile
+      const paraMarkdown = (t: string) => {
+        const rawLines = t.split("\n");
+        rawLines.forEach((rawLine) => {
+          const trimmed = rawLine.trim().replace(/[#*_`>]/g, "");
+          if (!trimmed) {
+            y += 4;
+            return;
+          }
+
+          if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+            const bulletText = trimmed.substring(2);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9.5);
+            doc.setTextColor(71, 85, 105); // slate-600
+
+            const lines = doc.splitTextToSize(bulletText, cw - 18);
+            lines.forEach((l: string, idx: number) => {
+              ensureSpace(16);
+              if (idx === 0) {
+                doc.setFillColor(61, 178, 178); // teal
+                doc.circle(margin + 6, y - 3, 2, "F");
+              }
+              doc.text(l, margin + 18, y);
+              y += 13;
+            });
+          } else {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9.5);
+            doc.setTextColor(51, 65, 85); // slate-700
+            const lines = doc.splitTextToSize(trimmed, cw);
+            lines.forEach((l: string) => {
+              ensureSpace(16);
+              doc.text(l, margin, y);
+              y += 13;
+            });
+          }
+        });
+      };
+
+      // Profile Card
       title(tr("patientProfile", currentLang));
+      ensureSpace(115);
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.setLineWidth(1);
+      doc.roundedRect(margin, y, cw, 105, 6, 6, "FD");
+
       const ageLabel = tr("age", currentLang);
       const yrsLabel = tr("yrs", currentLang);
       const genderLabel = tr("gender", currentLang);
@@ -140,30 +199,96 @@ function ReportPage() {
       const symptomsLabel = tr("symptomsLabel", currentLang);
       const symptomsVal = profile.symptoms || tr("noneReported", currentLang);
 
-      [
-        `${ageLabel}: ${profile.age} ${yrsLabel}    ${genderLabel}: ${genderVal}`,
-        `${heightLabel}: ${profile.heightCm} cm    ${weightLabel}: ${profile.weightKg} kg    BMI: ${result.bmi}`,
-        `${smokingLabel}: ${smokingVal}    ${exerciseLabel}: ${exerciseVal}`,
-        `${familyHistoryLabel}: ${familyHistoryVal}`,
-        `${symptomsLabel}: ${symptomsVal}`,
-      ].forEach((l) => para(l));
-      y += 10;
-
-      // Overall risk
-      title(tr("overallRisk", currentLang));
-      ensureSpace(60);
+      const cardY = y + 16;
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(28);
-      const color =
-        result.overallRisk === "Low"
-          ? [34, 139, 87]
-          : result.overallRisk === "Moderate"
-            ? [200, 130, 30]
-            : [200, 60, 40];
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text(`${result.overallScore}/80`, margin, y);
-      y += 26;
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42); // slate-900
+
+      // Columns labels
+      doc.text(`${ageLabel}:`, margin + 15, cardY);
+      doc.text(`${genderLabel}:`, margin + 15, cardY + 18);
+      doc.text(`${smokingLabel}:`, margin + 15, cardY + 36);
+
+      doc.text(`${heightLabel}:`, margin + 200, cardY);
+      doc.text(`${weightLabel}:`, margin + 200, cardY + 18);
+      doc.text(`${exerciseLabel}:`, margin + 200, cardY + 36);
+
+      doc.text(`BMI:`, margin + 380, cardY);
+
+      // Col values
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105); // slate-600
+      doc.text(`${profile.age} ${yrsLabel}`, margin + 90, cardY);
+      doc.text(`${genderVal}`, margin + 90, cardY + 18);
+      doc.text(`${smokingVal}`, margin + 90, cardY + 36);
+
+      doc.text(`${profile.heightCm} cm`, margin + 265, cardY);
+      doc.text(`${profile.weightKg} kg`, margin + 265, cardY + 18);
+      doc.text(`${exerciseVal}`, margin + 265, cardY + 36);
+
+      doc.text(`${result.bmi}`, margin + 415, cardY);
+
+      // Separator inside card
+      doc.setDrawColor(241, 245, 249);
+      doc.line(margin + 15, cardY + 46, margin + cw - 15, cardY + 46);
+
+      const cardBottomY = cardY + 58;
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(`${familyHistoryLabel}:`, margin + 15, cardBottomY);
+      doc.text(`${symptomsLabel}:`, margin + 15, cardBottomY + 16);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${familyHistoryVal}`, margin + 110, cardBottomY);
+      doc.text(`${symptomsVal}`, margin + 125, cardBottomY + 16);
+
+      y += 120;
+
+      // Overall Screening Index Card
+      title(tr("overallRisk", currentLang));
+      ensureSpace(85);
+
+      const isLow = result.overallRisk === "Low";
+      const isMod = result.overallRisk === "Moderate";
+
+      let cardBg = [240, 253, 244]; // emerald-50
+      let cardBorder = [187, 247, 208]; // emerald-200
+      let cardText = [22, 101, 52]; // emerald-800
+      if (isMod) {
+        cardBg = [254, 243, 199]; // amber-50
+        cardBorder = [253, 230, 138]; // amber-200
+        cardText = [146, 64, 14]; // amber-800
+      } else if (!isLow && !isMod) {
+        cardBg = [254, 242, 242]; // red-50
+        cardBorder = [254, 226, 226]; // red-200
+        cardText = [153, 27, 27]; // red-800
+      }
+
+      doc.setFillColor(cardBg[0], cardBg[1], cardBg[2]);
+      doc.setDrawColor(cardBorder[0], cardBorder[1], cardBorder[2]);
+      doc.setLineWidth(1);
+      doc.roundedRect(margin, y, cw, 65, 6, 6, "FD");
+
+      // Draw left color accent bar
+      doc.setFillColor(cardText[0], cardText[1], cardText[2]);
+      doc.rect(margin, y, 5, 65, "F");
+
+      // Draw score
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(26);
+      doc.setTextColor(cardText[0], cardText[1], cardText[2]);
+      doc.text(`${result.overallScore}`, margin + 25, y + 36);
+      doc.setFontSize(14);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.setFont("helvetica", "normal");
+      doc.text(`/80`, margin + 60, y + 36);
+
+      // Draw text info next to score
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
+      doc.setTextColor(cardText[0], cardText[1], cardText[2]);
+
       const riskLvlText = tr(
         result.overallRisk.toLowerCase() === "low"
           ? "low"
@@ -172,11 +297,19 @@ function ReportPage() {
             : "high",
         currentLang,
       );
-      doc.text(`${riskLvlText} ${tr("riskWord", currentLang)}`, margin, y);
-      y += 22;
-      doc.setTextColor(40);
+      doc.text(`${tr("riskLevel", currentLang)}: ${riskLvlText}`, margin + 110, y + 26);
 
-      // Per-condition
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105); // slate-600
+
+      const summaryText = tr("fit_risk_level_summary", currentLang) || "Based on your self-reported physiological markers and daily habits.";
+      const wrappedSummary = doc.splitTextToSize(summaryText, cw - 130);
+      doc.text(wrappedSummary, margin + 110, y + 42);
+
+      y += 80;
+
+      // Per-condition Screening Index
       title(tr("perConditionRisk", currentLang));
       const conditionKeyMap: Record<string, string> = {
         "Diabetes (Type 2)": "fit_diabetes_label",
@@ -191,19 +324,32 @@ function ReportPage() {
           ["Hypertension", result.risk.hypertension, result.rationale.hypertension],
         ] as const
       ).forEach(([name, score, why]) => {
-        ensureSpace(40);
+        ensureSpace(50);
+        
+        let indicatorColor = [34, 139, 87]; // green
+        if (score >= 33 && score < 66) indicatorColor = [200, 130, 30]; // amber
+        else if (score >= 66) indicatorColor = [200, 60, 40]; // red
+
+        // Draw left colored accent line
+        doc.setFillColor(indicatorColor[0], indicatorColor[1], indicatorColor[2]);
+        doc.rect(margin, y, 3, 30, "F");
+
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
+        doc.setFontSize(10.5);
+        doc.setTextColor(15, 23, 42); // slate-900
+        
         const condName = tr(conditionKeyMap[name] || name, currentLang);
-        doc.text(`${condName}: ${score}/100`, margin, y);
-        y += 14;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        para(why);
-        y += 8;
+        doc.text(`${condName}:`, margin + 12, y + 10);
+        
+        doc.setTextColor(indicatorColor[0], indicatorColor[1], indicatorColor[2]);
+        doc.text(`${score}/100`, margin + 12 + doc.getTextWidth(`${condName}: `), y + 10);
+        
+        y += 20;
+        para(why, 9, 12);
+        y += 12;
       });
 
-      // Plans
+      // Plans & Guidelines
       const sections: Array<[string, string]> = [
         [tr("dietPlan", currentLang), result.dietPlan],
         [tr("exercisePlan", currentLang), result.exercisePlan],
@@ -212,7 +358,7 @@ function ReportPage() {
       sections.forEach(([t, body]) => {
         y += 6;
         title(t);
-        para(body.replace(/[#*_`>]/g, ""));
+        paraMarkdown(body);
       });
 
       // Longitudinal progress summary if history exists
@@ -226,48 +372,92 @@ function ReportPage() {
         ensureSpace(120);
 
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text(tr("fit_metric", currentLang), margin, y);
-        doc.text(tr("fit_baseline", currentLang), margin + 140, y);
-        doc.text(tr("fit_current", currentLang), margin + 240, y);
-        doc.text(tr("fit_absolute_change", currentLang), margin + 340, y);
-        y += 8;
-        doc.setDrawColor(220);
-        doc.line(margin, y, pageW - margin, y);
-        y += 16;
+        doc.setFontSize(9.5);
+        doc.setTextColor(15, 23, 42); // slate-900
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
+        // Table header background
+        doc.setFillColor(241, 245, 249); // slate-100
+        doc.rect(margin, y - 10, cw, 22, "F");
 
-        // Body Weight
-        doc.text(tr("fit_body_weight", currentLang), margin, y);
-        doc.text(`${baseline.weightKg.toFixed(1)} kg`, margin + 140, y);
-        doc.text(`${latest.weightKg.toFixed(1)} kg`, margin + 240, y);
-        doc.text(`${weightDiff >= 0 ? "+" : ""}${weightDiff.toFixed(1)} kg`, margin + 340, y);
-        y += 16;
+        doc.text(tr("fit_metric", currentLang).toUpperCase(), margin + 10, y + 4);
+        doc.text(tr("fit_baseline", currentLang).toUpperCase(), margin + 180, y + 4);
+        doc.text(tr("fit_current", currentLang).toUpperCase(), margin + 280, y + 4);
+        doc.text(tr("fit_absolute_change", currentLang).toUpperCase(), margin + 380, y + 4);
+        y += 20;
 
-        // BMI
-        doc.text(tr("fit_body_mass_index", currentLang), margin, y);
-        doc.text(`${baseline.bmi.toFixed(1)}`, margin + 140, y);
-        doc.text(`${latest.bmi.toFixed(1)}`, margin + 240, y);
+        // Alternating row helper
+        const drawRow = (label: string, baseVal: string, curVal: string, diffVal: string, isEven: boolean) => {
+          ensureSpace(20);
+          if (isEven) {
+            doc.setFillColor(248, 250, 252); // slate-50
+            doc.rect(margin, y - 10, cw, 18, "F");
+          }
+          doc.setTextColor(15, 23, 42);
+          doc.setFont("helvetica", "bold");
+          doc.text(label, margin + 10, y + 2);
+
+          doc.setTextColor(71, 85, 105);
+          doc.setFont("helvetica", "normal");
+          doc.text(baseVal, margin + 180, y + 2);
+          doc.text(curVal, margin + 280, y + 2);
+
+          const isNegativeChange = diffVal.startsWith("-");
+          const isZero = diffVal === "0" || diffVal === "0.0" || diffVal.includes("0.0");
+          if (isZero) {
+            doc.setTextColor(100, 116, 139);
+          } else if (label.toLowerCase().includes("score") || label.toLowerCase().includes("weight") || label.toLowerCase().includes("bmi")) {
+            if (isNegativeChange) {
+              doc.setTextColor(22, 101, 52); // green
+            } else {
+              doc.setTextColor(153, 27, 27); // red
+            }
+          }
+          doc.setFont("helvetica", "bold");
+          doc.text(diffVal, margin + 380, y + 2);
+          y += 18;
+        };
+
         const bmiDiff = latest.bmi - baseline.bmi;
-        doc.text(`${bmiDiff >= 0 ? "+" : ""}${bmiDiff.toFixed(1)}`, margin + 340, y);
-        y += 16;
-
-        // Overall Risk Score
-        doc.text(tr("fit_overall_score", currentLang), margin, y);
-        doc.text(`${baseline.overallScore}/80`, margin + 140, y);
-        doc.text(`${latest.overallScore}/80`, margin + 240, y);
-        doc.text(`${scoreDiff >= 0 ? "+" : ""}${scoreDiff}`, margin + 340, y);
-        y += 16;
+        drawRow(
+          tr("fit_body_weight", currentLang),
+          `${baseline.weightKg.toFixed(1)} kg`,
+          `${latest.weightKg.toFixed(1)} kg`,
+          `${weightDiff >= 0 ? "+" : ""}${weightDiff.toFixed(1)} kg`,
+          true
+        );
+        drawRow(
+          tr("fit_body_mass_index", currentLang),
+          `${baseline.bmi.toFixed(1)}`,
+          `${latest.bmi.toFixed(1)}`,
+          `${bmiDiff >= 0 ? "+" : ""}${bmiDiff.toFixed(1)}`,
+          false
+        );
+        drawRow(
+          tr("fit_overall_score", currentLang),
+          `${baseline.overallScore}/80`,
+          `${latest.overallScore}/80`,
+          `${scoreDiff >= 0 ? "+" : ""}${scoreDiff}`,
+          true
+        );
       }
 
-      ensureSpace(40);
-      y += 12;
-      doc.setFontSize(8);
-      doc.setTextColor(140);
+      ensureSpace(60);
+      y += 10;
+
+      // Draw dividing line before disclaimer
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.line(margin, y, pageW - margin, y);
+      y += 14;
+
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184); // slate-400
+      doc.setFont("helvetica", "italic");
       const disclaimer = doc.splitTextToSize(tr("fit_disclaimer", currentLang), cw);
-      doc.text(disclaimer, margin, y);
+      disclaimer.forEach((l: string) => {
+        ensureSpace(12);
+        doc.text(l, margin, y);
+        y += 10;
+      });
 
       doc.save(`healthguard-report-${new Date().toISOString().slice(0, 10)}.pdf`);
       toast.success("Health report PDF downloaded successfully.", { id: toastId });
@@ -382,7 +572,7 @@ function ReportPage() {
           <Card className="border-border bg-surface shadow-card-soft">
             <CardHeader className="border-b border-border bg-surface-muted/50 p-4">
               <CardTitle className="text-sm font-bold text-foreground font-display flex items-center gap-2">
-                <HeartPulse className="h-4 w-4 text-teal" />
+                <ClipboardList className="h-4 w-4 text-teal" />
                 {tr("fit_lab_biomarkers", currentLang)}
               </CardTitle>
             </CardHeader>
@@ -395,7 +585,7 @@ function ReportPage() {
           <Card className="border-border bg-surface shadow-card-soft">
             <CardHeader className="border-b border-border bg-surface-muted/50 p-4">
               <CardTitle className="text-sm font-bold text-foreground font-display flex items-center gap-2">
-                <HeartPulse className="h-4 w-4 text-teal animate-pulse" />
+                <Activity className="h-4 w-4 text-teal animate-pulse" />
                 {tr("fit_analyzed_conditions", currentLang)}
               </CardTitle>
             </CardHeader>
