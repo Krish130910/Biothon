@@ -404,3 +404,48 @@ class TestNoScoreLeak:
         assert prob_no_labs == prob_mixed, (
             f"Mixed payload changed probability: {prob_no_labs} → {prob_mixed}"
         )
+
+
+class TestMessyFrontendLabInputs:
+    """Synthetic upload fixtures exercising messy but realistic input shapes."""
+
+    @pytest.mark.parametrize("unit", ["MG/DL", "mg / dL"])
+    def test_fbs_with_unexpected_unit_format_is_still_detected(self, unit):
+        payload = _make_payload([_verified_obs("FBS", 110.0, unit)])
+        response = client.post("/v1/modules/diabetes/evaluate", json=payload)
+
+        assert response.status_code == 200
+        evidence = response.json()["labEvidenceAvailable"]
+        assert len(evidence) == 1
+        assert evidence[0]["canonical"] == "fasting_blood_sugar"
+        assert evidence[0]["unit"] == unit
+
+    def test_unknown_lab_code_is_silently_ignored(self, caplog):
+        unknown_code = "APOLIPOPROTEIN_B_TEST_FIXTURE"
+        assert unknown_code.lower() not in _LAB_CODE_MAPS
+        payload = _make_payload([_verified_obs(unknown_code, 95.0, "mg/dL")])
+
+        with caplog.at_level(logging.WARNING, logger="app.main"):
+            response = client.post(
+                "/v1/modules/diabetes/evaluate", json=payload
+            )
+
+        assert response.status_code == 200
+        assert response.json()["labEvidenceAvailable"] == []
+        assert not caplog.records
+
+    def test_null_lab_value_is_excluded_with_warning(self, caplog):
+        payload = _make_payload([_verified_obs("FBS", None, "mg/dL")])
+
+        with caplog.at_level(logging.WARNING, logger="app.main"):
+            response = client.post(
+                "/v1/modules/diabetes/evaluate", json=payload
+            )
+
+        assert response.status_code == 200
+        assert response.json()["labEvidenceAvailable"] == []
+        warnings = [record.message for record in caplog.records]
+        assert any(
+            "null or non-finite" in message and "FBS" in message
+            for message in warnings
+        )

@@ -185,6 +185,84 @@ class TestModelInstalled(unittest.TestCase):
         self.assertIn("nextSteps", data)
 
 
+class TestThresholdRiskTier(unittest.TestCase):
+    """Threshold classification tests using mocked models and metadata only."""
+
+    def _evaluate_with_probability(self, probability, cutoff=0.20):
+        import numpy as np
+
+        mock_model = MagicMock()
+        mock_model.predict_proba.return_value = np.array(
+            [[1.0 - probability, probability]]
+        )
+        mock_metadata = {
+            "lifecycle_status": "RESEARCH_ONLY",
+            "training_date": "synthetic-test-fixture",
+            "active_threshold": {"mean_cutoff": cutoff},
+        }
+        with patch.multiple(
+            main_module,
+            _model=mock_model,
+            _model_installed=True,
+            _model_metadata=mock_metadata,
+            _model_active_cutoff=cutoff,
+        ):
+            return client.post(
+                "/v1/modules/diabetes/evaluate", json=_EVAL_PAYLOAD
+            )
+
+    def test_probability_above_cutoff_is_elevated(self):
+        response = self._evaluate_with_probability(0.80, cutoff=0.20)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["screeningSignal"], "elevated")
+
+    def test_probability_below_cutoff_is_lower(self):
+        response = self._evaluate_with_probability(0.05, cutoff=0.20)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["screeningSignal"], "not_elevated")
+
+    def test_missing_active_threshold_falls_back_safely(self):
+        import numpy as np
+        mock_model = MagicMock()
+        mock_model.predict_proba.return_value = np.array([[0.8, 0.2]])
+        mock_metadata = {"lifecycle_status": "RESEARCH_ONLY"}
+        with patch.multiple(
+            main_module,
+            _model=mock_model,
+            _model_installed=True,
+            _model_metadata=mock_metadata,
+            _model_active_cutoff=None,
+        ):
+            response = client.post(
+                "/v1/modules/diabetes/evaluate", json=_EVAL_PAYLOAD
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "model-unavailable")
+        self.assertNotIn("screeningSignal", response.json())
+
+    def test_malformed_active_threshold_falls_back_safely(self):
+        mock_model = MagicMock()
+        mock_metadata = {
+            "lifecycle_status": "RESEARCH_ONLY",
+            "active_threshold": {"mean_cutoff": "not-a-number"},
+        }
+        with patch.multiple(
+            main_module,
+            _model=mock_model,
+            _model_installed=True,
+            _model_metadata=mock_metadata,
+            _model_active_cutoff="not-a-number",
+        ):
+            response = client.post(
+                "/v1/modules/diabetes/evaluate", json=_EVAL_PAYLOAD
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "model-unavailable")
+        self.assertNotIn("screeningSignal", response.json())
+
+
 # ---------------------------------------------------------------------------
 # Tests that do NOT depend on model state (file-presence governance tests)
 # ---------------------------------------------------------------------------

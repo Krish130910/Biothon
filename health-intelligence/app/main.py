@@ -18,6 +18,7 @@ The response schema/shape is identical in both branches; only the values of
 
 import json
 import logging
+import math
 from pathlib import Path
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -45,7 +46,23 @@ _METADATA_PATH = _HI_DIR / "models" / "diabetes_model_metadata.json"
 _model = None
 _model_metadata: dict = {}
 _model_installed: bool = False
-_active_threshold_cutoff: Optional[float] = None
+# Active probability cutoff read from metadata["active_threshold"]["mean_cutoff"]
+# at load time.  Used in evaluate_diabetes for the "elevated vs not_elevated"
+# classification. None if the model is absent or threshold validation failed;
+# either state requires the model-unavailable response.
+_model_active_cutoff: Optional[float] = None
+
+
+def _validate_active_cutoff(value) -> float:
+    """Return a valid probability cutoff or raise ValueError."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("active_threshold.mean_cutoff must be numeric.")
+    cutoff = float(value)
+    if not math.isfinite(cutoff) or not 0.0 <= cutoff <= 1.0:
+        raise ValueError(
+            "active_threshold.mean_cutoff must be finite and between 0 and 1."
+        )
+    return cutoff
 
 try:
     import joblib as _joblib
@@ -61,24 +78,36 @@ try:
             f"accepted states {_ACCEPTED_LIFECYCLE_STATES}."
         )
 
-    _loaded_cutoff = float(_loaded_meta["active_threshold"]["mean_cutoff"])
-    if not 0.0 <= _loaded_cutoff <= 1.0:
-        raise ValueError("active_threshold.mean_cutoff must be between 0 and 1.")
+    # Validate the cutoff before accepting the model.
+    # KeyError / TypeError here fall through to the generic except, triggering
+    # the model-unavailable fallback — the service never partially loads.
+    _loaded_cutoff = _validate_active_cutoff(
+        _loaded_meta["active_threshold"]["mean_cutoff"]
+    )
 
     _model = _loaded
     _model_metadata = _loaded_meta
-    _active_threshold_cutoff = _loaded_cutoff
     _model_installed = True
+    _model_active_cutoff = _loaded_cutoff
+
     log.info(
-        "Model loaded. lifecycle=%s sample_size=%s",
-        _lifecycle, _loaded_meta.get("sample_size"),
+        "Model loaded. lifecycle=%s sample_size=%s active_cutoff=%.6f",
+        _lifecycle, _loaded_meta.get("sample_size"), _model_active_cutoff,
     )
 
 except FileNotFoundError:
+    _model = None
+    _model_metadata = {}
+    _model_installed = False
+    _model_active_cutoff = None
     log.info(
         "No model artifact at %s — service will return model-unavailable.", _MODEL_PATH
     )
 except Exception as _load_exc:
+    _model = None
+    _model_metadata = {}
+    _model_installed = False
+    _model_active_cutoff = None
     log.warning(
         "Model load failed (%s) — service will return model-unavailable.", _load_exc
     )
@@ -108,7 +137,7 @@ class Assessment(BaseModel):
 
 class LabObservation(BaseModel):
     code: str
-    value: float
+    value: Optional[float]   # Optional: null means result pending / not yet available
     unit: str
     observedAt: str
     isVerified: bool = False
@@ -184,8 +213,8 @@ _LAB_CODE_MAPS: dict[str, dict] = {
 _LAB_MODULE_NOTES: dict[str, str] = {
     "diabetes": (
         "Detected but not used as a model input: the current RESEARCH_ONLY "
-        "model uses only anthropometric and BP predictors. This value will be "
-        "considered in a future model version that includes verified laboratory inputs."
+        "model uses only age and BMI. This value will be considered in a "
+        "future model version that includes verified laboratory inputs."
     ),
     "cardiovascular": (
         "Detected but not currently used by any active model. Reserved for "
@@ -252,6 +281,19 @@ def _scan_lab_observations(observations: list) -> list[dict]:
 
         canonical = match["canonical"]
         module    = match["module"]
+
+        # ── None / non-finite value guard ────────────────────────────────────
+        # value is Optional[float]; null means the result is pending or the
+        # upload was malformed.  Exclude with a warning — never crash, never
+        # silently include.  This check must come before the range comparison
+        # below, which would TypeError on None.
+        if obs.value is None or not math.isfinite(obs.value):
+            log.warning(
+                "Lab observation excluded — value is null or non-finite: "
+                "code=%r value=%r unit=%r. Result may be pending or corrupted.",
+                obs.code, obs.value, obs.unit,
+            )
+            continue
 
         # ── Sanity-range check ────────────────────────────────────────────────
         # Only applied when a range is defined for this canonical name.
@@ -326,10 +368,7 @@ def get_models():
 @app.post("/v1/modules/diabetes/evaluate")
 def evaluate_diabetes(context: HealthContext):
     # ------------------------------------------------------------------
-    # Model-available branch — compute probability from loaded artifact
-    # ------------------------------------------------------------------
-    # ------------------------------------------------------------------
-    # Scan labObservations for verified diabetes-relevant lab values.
+    # Scan labObservations for verified lab values.
     # This runs in BOTH branches (model present or absent) so the
     # frontend always knows when a verified lab report was submitted.
     # The model's feature vector is NOT affected by this scan.
@@ -346,31 +385,47 @@ def evaluate_diabetes(context: HealthContext):
         try:
             import pandas as pd
 
+            # A complete response requires a validated cutoff and its
+            # contextual screeningSignal. Invalid threshold state must use
+            # the same model-unavailable fail-safe as other load failures.
+            active_cutoff = _validate_active_cutoff(_model_active_cutoff)
+
             a = context.assessment
             bmi = (
                 a.weightKg / ((a.heightCm / 100.0) ** 2)
                 if a.heightCm and a.weightKg
                 else None
             )
-            # ── Feature vector — model inputs are fixed ────────────────────
-            # FBS / HbA1c are intentionally excluded: they are forbidden
-            # predictors under the training leakage policy and the current
-            # model was trained without them.  Verified lab values from
-            # labObservations are surfaced in labEvidenceAvailable instead.
+
+            # ── Feature vector — age_years and bmi ONLY ────────────────────
+            # The model (train_icmr.py) was updated to use exactly these two
+            # predictors after feature-set comparison showed no PR-AUC gain
+            # from adding waist_cm, systolic_bp, diastolic_bp, or sex.
+            # The sklearn Pipeline (SimpleImputer inside) handles any NaN
+            # values — no pre-inference median imputation is needed here.
+            # FBS / HbA1c remain excluded: forbidden under the leakage policy.
             feature_row = {
-                "age_years":    float(a.age),
-                "bmi":          float(bmi) if bmi is not None else float("nan"),
+                "age_years": float(a.age),
+                "bmi":       float(bmi) if bmi is not None else float("nan"),
             }
 
             X_input = pd.DataFrame([feature_row])
 
             prob = float(_model.predict_proba(X_input)[0][1])
-            risk_tier = "elevated" if prob >= _active_threshold_cutoff else "lower"
+
+            # ── Screening signal — cutoff from metadata, never hardcoded ───
+            # _model_active_cutoff is read from metadata["active_threshold"]
+            # ["mean_cutoff"] at startup (currently 0.1206 for 75 % sensitivity
+            # target). Missing or malformed threshold state is rejected before
+            # inference and cannot produce an uncontextualized probability.
+            screening_signal = (
+                "elevated" if prob >= active_cutoff else "not_elevated"
+            )
 
             used    = [k for k, v in feature_row.items() if v == v]   # not NaN
             missing = [k for k, v in feature_row.items() if v != v]   # NaN
 
-            return {
+            response: dict = {
                 "moduleId":             "diabetes-screening",
                 "moduleVersion":        _model_metadata.get("training_date", "unassigned"),
                 "status":               "complete",
@@ -379,7 +434,7 @@ def evaluate_diabetes(context: HealthContext):
                 "evidenceSupport":      "research-only",
                 "reasonCodes":          ["RESEARCH_ONLY_MODEL"],
                 "screeningProbability": prob,
-                "riskTier":             risk_tier,
+                "screeningSignal":      screening_signal,
                 "usedEvidence":         used,
                 "missingEvidence":      missing,
                 # Verified lab values found in the submission but not yet
@@ -397,6 +452,8 @@ def evaluate_diabetes(context: HealthContext):
                     "LABORATORY_CONFIRMATION_RECOMMENDED",
                 ],
             }
+            return response
+
         except Exception as exc:
             log.warning("Inference failed (%s) — returning model-unavailable.", exc)
 
