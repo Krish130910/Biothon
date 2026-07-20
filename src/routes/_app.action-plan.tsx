@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useHealthResult, useProfile } from "@/lib/health-store";
-import { useLanguage, tr } from "@/lib/i18n";
+import { useLanguage, tr, type Lang } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -223,7 +224,7 @@ function MetricCard({
   );
 }
 
-function getFocusTranslation(focus: string, currentLang: string) {
+function getFocusTranslation(focus: string, currentLang: Lang) {
   const norm = focus.toLowerCase();
   if (norm === "vo2 intervals") return tr("fit_vo2", currentLang);
   if (norm === "long endurance") return tr("fit_endurance", currentLang);

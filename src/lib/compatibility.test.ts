@@ -174,11 +174,11 @@ describe("Frontend Compatibility & Isolation Tests", () => {
 
     const html = renderToString(React.createElement(DashboardComponent));
     
-    // Assert all dashboard headings are rendered
-    expect(html).toContain("Risk Dashboard");
+    // Assert all dashboard headings are rendered (updated for redesign)
+    expect(html).toContain("Your Health Report is Ready");
     expect(html).toContain("Overall Health Score");
-    expect(html).toContain("Top Risk Contributors");
-    expect(html).toContain("Priority Actions");
+    expect(html).toContain("Key Risk Factors");
+    expect(html).toContain("AI Health Coach Focus");
 
     // Assert condition breakdown sections are rendered
     expect(html).toContain("Diabetes");

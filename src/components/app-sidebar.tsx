@@ -20,7 +20,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { useLanguage, tr } from "@/lib/i18n";
+import { useLanguage, tr, type Lang } from "@/lib/i18n";
 
 const product = [
   { to: "/dashboard",  labelKey: "dashboard",       icon: LayoutDashboard },
@@ -46,7 +46,7 @@ type NavItem = {
   icon: React.ElementType;
 };
 
-function NavIcon({ item, pathname, currentLang }: { item: NavItem; pathname: string; currentLang: string }) {
+function NavIcon({ item, pathname, currentLang }: { item: NavItem; pathname: string; currentLang: Lang }) {
   const label = tr(item.labelKey, currentLang);
   const active = pathname === item.to;
 

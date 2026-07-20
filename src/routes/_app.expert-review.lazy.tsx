@@ -456,7 +456,7 @@ function ExpertReviewPage() {
             <div className="flex flex-col gap-2">
               <Button
                 onClick={handleDevRegisterExpert}
-                size="xs"
+                size="sm"
                 variant="outline"
                 disabled={devRegistering}
                 className="text-[10px] h-7 cursor-pointer border-teal/40 hover:bg-teal/10"
@@ -465,7 +465,7 @@ function ExpertReviewPage() {
               </Button>
               <Button
                 asChild
-                size="xs"
+                size="sm"
                 className="text-[10px] h-7 bg-teal hover:bg-teal/95 font-semibold text-white"
               >
                 <Link to="/expert-dashboard">

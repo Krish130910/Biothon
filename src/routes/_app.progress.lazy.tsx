@@ -393,10 +393,10 @@ function ProgressPage() {
                         {tr("projected30", currentLang)}
                       </span>
                       <div className="font-display text-3xl font-extrabold text-foreground">
-                        {prediction.predictedRisk30Days}/80
+                        {prediction.predictedRisk30Days ?? 0}/80
                       </div>
                       <Progress
-                        value={(prediction.predictedRisk30Days / 80) * 100}
+                        value={((prediction.predictedRisk30Days ?? 0) / 80) * 100}
                         className="h-2 [&>div]:bg-teal"
                       />
                     </div>
@@ -405,10 +405,10 @@ function ProgressPage() {
                         {tr("projected90", currentLang)}
                       </span>
                       <div className="font-display text-3xl font-extrabold text-foreground">
-                        {prediction.predictedRisk90Days}/80
+                        {prediction.predictedRisk90Days ?? 0}/80
                       </div>
                       <Progress
-                        value={(prediction.predictedRisk90Days / 80) * 100}
+                        value={((prediction.predictedRisk90Days ?? 0) / 80) * 100}
                         className="h-2 [&>div]:bg-teal"
                       />
                     </div>
